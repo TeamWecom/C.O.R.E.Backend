@@ -1,0 +1,91 @@
+<html>
+  <head>
+    
+  </head>
+  <body>
+    <h1>Chat</h1>
+    <div>
+      <input id="message" placeholder="Message" style="width: 600px;">
+      <button id="send" disabled="true">Send</button>
+    </div>
+    <div id="messages">
+    </div>
+    <script type="text/javascript">
+      // Recupera o token armazenado em localStorage
+      const token = localStorage.getItem('token');
+      console.log('Token:', token);
+
+      // Obtém a URL atual da página
+      const currentUrl = window.location.hostname;
+      let wsUrl = '';
+      // Constrói dinamicamente a URL WebSocket
+      if(window.location.protocol == 'http:'){
+          wsUrl = 'ws://' + currentUrl + ':10000/ws?token=' + token;
+      }else{
+          wsUrl = 'wss://' + currentUrl + '/ws?token=' + token;
+      }
+      let ws;
+      let timer;
+      document.querySelector('#send').addEventListener('click', function() {
+                ws.send(document.querySelector('#message').value);
+          });
+      function connect() {
+          ws = new WebSocket(wsUrl);
+
+          clearTimeout(timer);
+
+          ws.onopen = () => {
+              console.log('WebSocket connection opened');
+              document.querySelector('#send').disabled = false;
+              
+          };
+
+          ws.onclose = (event) => {
+              document.querySelector('#send').disabled = true;
+              console.log('WebSocket connection closed:', event.code, event.reason);
+              timer = setTimeout(connect, 10000); // Tenta reconectar após 60 segundos
+          };
+
+          ws.onerror = (error) => {
+              console.error('WebSocket error:', error.message);
+          };
+
+          ws.onmessage = (message) => {
+            const obj = JSON.parse(message.data)
+              if(obj.mt == "SelectSensorHistoryResult"){
+                const result = obj.result
+                console.log('WebSocket message received:', result);
+              }
+              console.log('WebSocket message received:',  message.data);
+              document.querySelector('#messages').innerHTML += `<div>${message.data}</div>`;
+          };
+      }
+
+      connect(); // Inicia a conexão WebSocket
+
+      //let ws= {} 
+      //connect()
+      // A classe `WebSocket` nos navegadores tem uma sintaxe um pouco diferente de `ws`
+      // Ao invés da sintax de EventEmmiter `on('open')`, você adiciona um callback
+      // a propriedade `onopen`.
+      // ws.onopen = function() {
+      //   //ws.send(JSON.stringify({api: "user", mt:"UserSession", guid:"danilo.volz", dn: "Dailo Volz"}));
+      //   document.querySelector('#send').disabled = false;
+      //   document.querySelector('#send').addEventListener('click', function() {
+      //     ws.send(document.querySelector('#message').value);
+      //   });
+      // };
+      // ws.onmessage = function(msg) {
+      //   document.querySelector('#messages').innerHTML += `<div>${msg.data}</div>`;
+      // };
+      // ws.onclose = function(){
+      //   // Redireciona para login.html após close
+      //   //window.location.href = '/ui/login';
+      //   document.querySelector('#send').disabled = true;
+      //   document.createElement("button").addEventListener('click', function(ev){
+      //     connect();
+      //   })
+      // }
+    </script>
+  </body>
+</html>

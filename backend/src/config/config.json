@@ -1,0 +1,19 @@
+{
+  "dbConfig": {
+    "user": "postgres",
+    "host": "127.0.0.1",
+    "database": "emergencys",
+    "password": "postgres",
+    "port": 5432
+  },
+  "pbxConfig":{
+     "pbxType":"Epygi", 
+    "host":"https://epwebrtc.epygicloud.com/restcallcontrol",
+    "customHeaders":{
+      "Authorization": "Basic YWRtaW46ZXB3ZWJydGMyMDI0",
+      "Content-Type": "application/json"
+    },
+    "usernameEpigy": "102",
+    "passwordEpygi": "51655787981817"
+  }
+}
