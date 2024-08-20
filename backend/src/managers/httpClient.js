@@ -15,8 +15,8 @@ export const sendHttpGetRequest = async (endpoint, customHeaders) => {
         log(`GET request to ${endpoint} successful:`);
         return response;
     } catch (error) {
-        log(`Error sending GET request to ${endpoint}:`, error.message);
-        return error.message;
+        log(`Error sending GET request to ${endpoint}:${error.message}`);
+        return error.response;
     }
 }
 

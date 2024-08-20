@@ -11,7 +11,7 @@ export const addConnection = async (conn) => {
     const connCount = connectionsUser.filter(client => client.guid === conn.guid);
     if(connCount.length==1){
         //notifia a todos sobre o noo login
-        broadcast({ mt: "UserOnline", session: conn.session, guid: conn.guid });
+        //broadcast({ mt: "UserOnline", session: conn.session, guid: conn.guid }); //Substituído pelo innovaphoneController
 
         // Insert into DB the event of new login
         const today = getDateNow();
@@ -28,7 +28,7 @@ export const removeConnection = async (conn) => {
     const connCount = connectionsUser.filter(client => client.guid === conn.guid);
     if(connCount.length==0 && conn.guid){
         //notifia a todos sobre o noo login
-        broadcast({ mt: "UserOffline", session: conn.session, guid: conn.guid });
+        //broadcast({ mt: "UserOffline", session: conn.session, guid: conn.guid });
     }
 
     // Insert into DB the event
@@ -45,7 +45,7 @@ export const send = (guid, message) => {
         connectionsUser.forEach(client => {
             if (client.guid === guid) {
                 client.send(JSON.stringify(message));
-                log(`WS Send: Client Guid: ${client.guid} CN: ${client.dn} notified about message: ${JSON.stringify(message.mt)}`);
+                log(`################################# Mensagem enviada: Client Guid: ${client.guid} CN: ${client.dn} notified about message: ${JSON.stringify(message.mt)}`);
                 result = true;
             }
         });
@@ -59,7 +59,7 @@ export const broadcast = (message) => {
     try {
         connectionsUser.forEach(client => {
                 client.send(JSON.stringify(message));
-                log(`WS Send: Client Guid: ${client.guid} CN: ${client.dn} notified about message: ${JSON.stringify(message.mt)}`);
+                log(`################################# Mensagem enviada: Client Guid: ${client.guid} CN: ${client.dn} notified about message: ${JSON.stringify(message.mt)}`);
                 result++;
         });
     } catch (e) {

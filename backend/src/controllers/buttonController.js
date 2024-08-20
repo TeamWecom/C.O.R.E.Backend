@@ -9,6 +9,7 @@ import process from 'process';
 import configFile from '../config/config.js';
 import { config as dotenvConfig } from 'dotenv';
 import { QueryTypes, Op } from 'sequelize';
+import {innovaphoneMakeCall, innovaphoneClearCall} from '../controllers/innovaphoneController.js';
 dotenvConfig();
 
 import { fileURLToPath } from 'url';
@@ -23,55 +24,59 @@ const env = process.env.NODE_ENV || 'development';
 const config = configFile[env];
 
 
-// Uso dos dados de configuração
-const pbxConfig = config.pbxConfig;
-log(pbxConfig);
-let activeAlarms = [];
 
-
-export const MakeCall = async (user, device, prt) => {
+export const MakeCall = async (guid, btn_id) => {
     try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
         //const callid = random.generateRandomBigInt(19);
+        const btn = await db.button.findOne({
+            where: {
+                id: btn_id
+            }
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
 
         let result = await db.call.create({
-            guid:user,
-            number: prt,
+            guid: guid,
+            number: btn.button_prt,
             call_started: getDateNow(),
             status: 1,
-            direction:"out"
+            direction: "out"
         })
-        log("danilo-req MakeCall: create.call success " + result.id);
-        if(pbxConfig.pbxType === 'INNOVAPHONE'){
-            // if(pbxConfig.customHeaders){
-            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
-            // }
-            var post = await sendHttpPostRequest(pbxConfig.host, { 
-                num: prt, 
-                mode: 'UserCall', 
-                sip: device, 
-                user: user}, pbxConfig.customHeaders)
-            log("danilo-req MakeCall: httpService.sendHttpPostRequest success " +post);
-            return post
+        log("buttonController:MakeCall: db.create.call success " + result.id);
+        log("buttonController:MakeCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneMakeCall(btn, user)
         }
-        if(pbxConfig.pbxType === 'EPYGI'){                                    
+        if(pbxType.valuel == 'EPYGI'){                                    
             // if(pbxConfig.customHeaders){
             //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
             // }
             
-            var post = await sendHttpPostRequest(pbxConfig.host, {
-                restPeerIP: pbxConfig.restPeerIP,
-                cmd: "CreateCall",
-                username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
-                password: pbxConfig.passwordEpygi, //Senha do ramal virtual
-                displayName: "REST 3PCC 120",
-                restCallID: result.id, //"7325840796693965112"
-                ownerID: "REST Req2Call",
-                sipUsername: "EmergencyS", //Nome mostrado durante o ring
-                callSource: device,
-                callDestination: prt
-                },pbxConfig.customHeaders)
-            log("danilo-req MakeCall: httpService.sendHttpPostRequest success "+post);
-            return post
+            // var post = await sendHttpPostRequest(pbxType.vl, {
+            //     restPeerIP: pbxConfig.restPeerIP,
+            //     cmd: "CreateCall",
+            //     username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
+            //     password: pbxConfig.passwordEpygi, //Senha do ramal virtual
+            //     displayName: "REST 3PCC 120",
+            //     restCallID: result.id, //"7325840796693965112"
+            //     ownerID: "REST Req2Call",
+            //     sipUsername: "EmergencyS", //Nome mostrado durante o ring
+            //     callSource: device,
+            //     callDestination: prt
+            //     },pbxType.vl)
+            // log("danilo-req MakeCall: httpService.sendHttpPostRequest success "+post);
+            // return post
         }
     }catch(e){
         log("danilo-req MakeCall: error " + e)
@@ -79,12 +84,29 @@ export const MakeCall = async (user, device, prt) => {
     }  
 }
 
-export const ClearCall = async (user, device, prt) => {
+export const ClearCall = async (guid, btn_id) => {
     try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        const btn = await db.button.findOne({
+            where: {
+                id: btn_id
+            }
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+
         let call = await db.call.findOne({
             where: {
-              guid: user,
-              number: prt,
+              guid: guid,
+              number: btn.button_prt,
               status: 1
             },
             order: [
@@ -98,43 +120,33 @@ export const ClearCall = async (user, device, prt) => {
              }, // Valores a serem atualizados
             { where: { id: parseInt(call.id) } } // Condição para atualização
           );
-          log("callToUpdateResult"+callToUpdateResult)
-        if(pbxConfig.pbxType === 'INNOVAPHONE'){
-            // if(pbxConfig.customHeaders){
-            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
-            // }
-            sendHttpPostRequest(pbxConfig.host, { num: prt, mode: 'UserClear', sip: device, user: user},customHeaders)
-            .then(async function(res){
-                log("danilo-req ClearCall: httpService.sendHttpPostRequest success"+res);
-                return res
-            })
-            .catch (function (error, errorText, dbErrorCode) {
-                log("danilo-req ClearCall: httpService.sendHttpPostRequest error " + errorText);
-                return errorText
-            });
+          log("buttonController:ClearCall::callToUpdateResult "+callToUpdateResult)
+        if(pbxType.value === 'INNOVAPHONE'){
+            return await innovaphoneClearCall(btn, user);
+
         }
-        if(pbxConfig.pbxType === 'EPYGI'){                                    
+        if(pbxType.value === 'EPYGI'){                                    
             // if(pbxConfig.customHeaders){
             //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
             // }
-            sendHttpPostRequest(pbxConfig.host, {
-                restPeerIP: pbxConfig.restPeerIP,
-                cmd: "EndCall",
-                username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
-                password: pbxConfig.passwordEpygi, //Senha do ramal virtual
-                restCallID: call.id, //"7325840796693965112"
-                ownerID: "REST Req2Call",
-                },customHeaders)
-                .then(async function(res){
+            // sendHttpPostRequest(pbxType.vl, {
+            //     restPeerIP: pbxType.restPeerIP,
+            //     cmd: "EndCall",
+            //     username: pbxType.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
+            //     password: pbxType.passwordEpygi, //Senha do ramal virtual
+            //     restCallID: call.id, //"7325840796693965112"
+            //     ownerID: "REST Req2Call",
+            //     },pbxType.vl)
+            //     .then(async function(res){
                     
-                    log("danilo-req ClearCall: httpService.sendHttpPostRequest success"+res);
-                    return res
+            //         log("danilo-req ClearCall: httpService.sendHttpPostRequest success"+res);
+            //         return res
                    
-                })
-                .catch (function (error, errorText, dbErrorCode) {
-                    log("danilo-req CleaCall: httpService.sendHttpPostRequest error " + errorText);
-                    return errorText
-                });
+            //     })
+            //     .catch (function (error, errorText, dbErrorCode) {
+            //         log("danilo-req CleaCall: httpService.sendHttpPostRequest error " + errorText);
+            //         return errorText
+            //     });
             
         }
         

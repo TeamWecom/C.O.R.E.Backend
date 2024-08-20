@@ -13,6 +13,8 @@ import { generateGUID } from '../utils/generateGuid.js';
 import {sendHttpPostRequest, sendHttpGetRequest} from '../managers/httpClient.js';
 import { getParametersByDeviceName} from '../utils/milesightParameters.js';
 import { raw } from 'express';
+import {pbxStatus, pbxTableUsers, requestPresences} from '../controllers/innovaphoneController.js'
+import { decryptedLicenseFile, returnLicenseFile, returnLicenseKey ,encryptLicenseFile} from './licenseController.js';
 
 let license = { Users: 10 }; // Licença temporária
 
@@ -34,6 +36,7 @@ export const handleConnection = async (conn, req) => {
             conn.guid = user.guid;
             conn.dn = user.name;
             conn.sip = user.sip;
+            conn.type = user.type;
 
             if (getConnections().length > 0) {
                 const foundConn = getConnections().filter(c => c === conn);
@@ -149,6 +152,31 @@ export const handleConnection = async (conn, req) => {
                             conn.send(JSON.stringify({ api: "user", mt: "SelectMessageHistoryResultSrc", result: data, src: obj.src }))
 
                         }
+                        if(obj.mt == "SelectAllMessagesSrc"){ //Quando loga para retornar útimo valor de cada sensor na tabela
+                            const query = `WITH ranked_records AS (
+                                                SELECT
+                                                    *,
+                                                    ROW_NUMBER() OVER (PARTITION BY from_guid, to_guid ORDER BY date DESC) AS rn
+                                                FROM
+                                                    tbl_messages
+                                                WHERE
+                                                    from_guid = '${conn.guid}' OR to_guid = '${conn.guid}'
+                                            )
+                                            SELECT
+                                                *
+                                            FROM
+                                                ranked_records
+                                            WHERE
+                                                rn = 1;`;
+
+                            // Execute a consulta usando sequelize.query()
+                            const result = await db.sequelize.query(query, {
+                                type: QueryTypes.SELECT
+                            });
+                            //const filteredResult = filterNonNullColumns(result);
+                              
+                            conn.send(JSON.stringify({ api: "user", mt: "SelectAllMessagesSrcResult", result: JSON.stringify(result), src: obj.src }))
+                        }
                         //#endregion
                         //#region INICIALIZAÇÃO
                         if (obj.mt == "Ping") {
@@ -156,26 +184,16 @@ export const handleConnection = async (conn, req) => {
                             conn.send(JSON.stringify({api: "user", mt: "Pong"}))
                             
                         }
-                        if (obj.mt == "UsersConnected") {
-                            log("webSocketController: UsersConnected:");
-                            const list_users = []
-                            connectionsUser.forEach(function (u) {
-                                list_users.push({guid: u.guid, cn: u.dn})
-                            })
-                            conn.send(JSON.stringify({ api: "user", mt: "UsersConnectedResult", src: obj.src, result: JSON.stringify(list_users, null, 4) }));
-                        }
                         if (obj.mt == "TableUsers") {
                             log("webSocketController: TableUsers: reducing the pbxTableUser object to send to user");
                             var list_users = await db.user.findAll({
                                 attributes:['id', 'name', 'guid', 'email', 'sip']
                             });
                             conn.send(JSON.stringify({ api: "user", mt: "TableUsersResult", src: obj.src, result: list_users }));
-
-                            const conns = getConnections()
-                            conns.forEach((c)=>{
-                                conn.send(JSON.stringify({ mt: "UserOnline", session: c.session, guid: c.guid }));
-                            })
-
+                            
+                            const pbxUsers = await pbxTableUsers();
+                            conn.send(JSON.stringify({ api: "user", mt: "PbxTableUsersResult", src: obj.src, result: pbxUsers }));
+                            requestPresences(conn.guid)
                             const msgs = await db.message.findAll({
                                 where: {
                                     to_guid: conn.guid,
@@ -193,87 +211,34 @@ export const handleConnection = async (conn, req) => {
                         if (obj.mt == "UserSession") {
                             //var session = generateGUID()
                             conn.send(JSON.stringify({ api: "user", mt: "UserSessionResult", session: conn.session, guid: conn.guid  }));
-        
-                            // //Intert into DB the event of new login
-                            // log("webSocketController: UserSession: insert into DB = user " + conn.guid);
-                            // var msg = { guid: conn.guid, name: conn.dn, date: today, status: "Login", details: "APP " + obj.api }
-                            // log("webSocketController: UserSession: will insert it on DB : " + JSON.stringify(msg));
-                            // //insertTblAvailability(msg);
-                            // const insertLoginAvailabilityResult = await db.availability.create(msg)
-                            // log("webSocketController::conn.UserSession insertTblAvailabilityResult : " + JSON.stringify(insertLoginAvailabilityResult));
-       
-            
                         }
-                        if (obj.mt == "InitializeMessage") {
-                            log("connectionsUser: connectionsUser.length " + connectionsUser.length);
-                            
-                            
-                            //    //Reset badge count
-                            //     //updateTableBadgeCount(conn.sip, "ResetCount");
-            
-                            //     //Callback user about success login
-                            log("webSocketController:: InitializeMessage Callback user about success login " + conn.session);
-                            conn.send(JSON.stringify({ api: "user", mt: "UserInitializeResultSuccess", src: conn.session }));
-                            log(`New client connected. Guid: ${conn.session}`);
-        
-                        }
+                        
                         //#endregion
                         //#region BOTÕES
                         if (obj.mt == "TriggerCall") {
-                            let call = await MakeCall(conn.guid, obj.device,obj.prt)
-                            log("webSocketController:: insert into DB = user " + conn.sip);
-                            var msg = { guid: conn.guid, name: "call", date: today, status: "start", details: obj.prt }
-                            log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                            await triggerActionByStartType(conn.sip, obj.prt, "number")
-                            .then(async function(ra){
-                                conn.send(JSON.stringify({ api: "user", mt: "TriggerCallResult", result: call, actionResult: ra  }));
-                            }).catch(function(e){
-                                conn.send(JSON.stringify({ api: "user", mt: "TriggerCallResult", result: call, actionResult: e  }));
-                            })
+                            
+                            let result = await MakeCall(conn.guid, obj.btn_id)
+                            
+                            log("webSocketController:TriggerCall: result : " + JSON.stringify(result));
+
+                            conn.send(JSON.stringify({ api: "user", mt: "TriggerCallResult", result: result }));
+
+                            return;
                             
                         }
                         if (obj.mt == "EndCall") {
-                           log("webSocketController::EndCall");
-                        
 
-                           let result = await ClearCall(conn.guid, obj.device ,obj.prt)
+                           let result = await ClearCall(conn.guid, obj.btn_id)
+
                            conn.send(JSON.stringify({ api: "user", mt: "EndCallResult", result: result }));
+                            return;
                         }
-                        if (obj.mt == "TriggerStartPage") { //Chamado quando usuário ativa uma página de conteúdo
+                        if (obj.mt == "TriggerStartOpt") { //Chamado quando usuário ativa uma Opt
                             //intert into DB the event
-                            log("webSocketController:: insert into DB = user " + conn.sip);
-                            var msg = { guid: conn.guid, name: "page", date: today, status: "start", details: obj.prt }
+                            var msg = { guid: conn.guid, name: "opt", date: getDateNow(), status: "open", details: obj.btn_id }
+                            log("webSocketController:TriggerStartOpt: will insert it on DB : " + JSON.stringify(msg));
                             var result = await db.activity.create(msg)
-                            conn.send(JSON.stringify({ api: "user", mt: "TriggerStartPageResult", src: result }));
-                            log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                            //insertTblActivities(msg);
-
-                        }
-                        if (obj.mt == "TriggerStopPage") { //Chamado quando usuário desativa uma página de conteúdo
-                            //intert into DB the event
-                            log("webSocketController:: insert into DB = user " + conn.sip);
-                            var msg = { guid: conn.guid, name: "page", date: today, status: "stop", details: obj.prt }
-                            var result = await db.activity.create(msg)
-                            conn.send(JSON.stringify({ api: "user", mt: "TriggerStopPageResult", src: result }));
-                            log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                            //insertTblActivities(msg);
-
-                        }
-                        if (obj.mt == "TriggerStartVideo") { //Chamado quando usuário ativa um vídeo
-                            //intert into DB the event
-                            log("webSocketController:: insert into DB = user " + conn.sip);
-                            var msg = { guid: conn.guid, name: "video", date: today, status: "start", details: obj.prt }
-                            var result = await db.activity.create(msg)
-                            conn.send(JSON.stringify({ api: "user", mt: "TriggerStartVideoResult", src: result }));
-                            log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                        }
-                        if (obj.mt == "TriggerStopVideo") { //Chamado quando usuário desativa um vídeo
-                            //intert into DB the event
-                            log("webSocketController:: insert into DB = user " + conn.sip);
-                            var msg = { guid: conn.guid, name: "video", date: today, status: "stop", details: obj.prt }
-                            var result = await db.activity.create(msg)
-                            conn.send(JSON.stringify({ api: "user", mt: "TriggerStopVideoResult", src: result }));
-                            log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
+                            conn.send(JSON.stringify({ api: "user", mt: "TriggerStartOptResult", src: result }));
                         }
                         if (obj.mt == "TriggerCombo") {
                             //trigger the combo function
@@ -320,13 +285,11 @@ export const handleConnection = async (conn, req) => {
                                 //callHTTPSServer(parseInt(obj.prt), conn.guid);
                             }
 
-                            //intert into DB the event
-                            log("webSocketController:: insert into DB = user " + conn.sip);
-
                             const btn = await db.button.findOne({where:{
                                 id: obj.btn_id
                             }})
-        
+                            
+                            //intert into DB the event
                             var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "out", details: btn.button_name, prt: obj.prt }
                             log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                             const resultInsert = await db.activity.create(msg)
@@ -348,13 +311,11 @@ export const handleConnection = async (conn, req) => {
                                 //callHTTPSServer(parseInt(obj.prt), conn.guid);
                             }
 
-                            //intert into DB the event
-                            log("webSocketController:: insert into DB = user " + conn.sip);
-
                             const btn = await db.button.findOne({where:{
                                 id: obj.btn_id
                             }})
-        
+
+                            //intert into DB the event
                             var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "stop", details: btn.button_name, prt: obj.prt }
                             log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                             const resultInsert = await db.activity.create(msg)
@@ -459,10 +420,15 @@ export const handleConnection = async (conn, req) => {
                                 attributes:['id','name', 'guid', 'email', 'sip', 'password', 'createdAt', 'updatedAt', 'type']
                             });
                             conn.send(JSON.stringify({ api: "admin", mt: "TableUsersResult", src: obj.src, result: list_users }));
-                            const conns = getConnections()
-                            conns.forEach((c)=>{
-                                conn.send(JSON.stringify({ mt: "UserOnline", session: c.session, guid: c.guid }));
-                            })
+                            const pbxUsers = await pbxTableUsers();
+                            conn.send(JSON.stringify({ api: "admin", mt: "PbxTableUsersResult", src: obj.src, result: pbxUsers }));
+                            
+
+                            // const conns = getConnections()
+                            // conns.forEach((c)=>{
+                            //     conn.send(JSON.stringify({ mt: "UserOnline", session: c.session, guid: c.guid }));
+                            // })
+                            requestPresences(conn.guid)
 
                             const configResult = await db.config.findAll();
                             conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: configResult }));
@@ -492,59 +458,61 @@ export const handleConnection = async (conn, req) => {
                             const insertConfigResult = await db.config.create(objToInsert)
                             conn.send(JSON.stringify({ api: "admin", mt: "AddConfigSuccess", result: insertConfigResult }));
                         }
+                        if(obj.mt == "PbxStatus"){
+                            const status = await pbxStatus()
+                            conn.send(JSON.stringify({ api: "admin", mt: "PbxStatusResult", result: status }));
+                        }
                         //#endregion
                         //#region LICENSE
                         if (obj.mt == "ConfigLicense") {
-                            const licenseAppToken = await db.config.findOne(
-                                {where:{
-                                    entry: "licenseAppToken"
-                                }}
-                            )
-                            const licenseAppFile = await db.config.findOne(
-                                {where:{
-                                    entry: "licenseAppFile"
-                                }}
-                            )
-                            var licUsed = connectionsUser.length;
-                            var lic = decrypt(licenseAppToken, licenseAppFile)
+                            const lic = await decryptedLicenseFile();
+                            const licenseKey = await returnLicenseKey();
+                            const licenseFile = await returnLicenseFile();
+
+                            if (lic['users'] !== undefined) {
+                                const usersCreated = await db.user.findAll({
+                                    where:{
+                                        type: 'user'
+
+                                }})
+                                lic['users'] = { total: lic['users'], used: usersCreated.length };
+                            }
+                            if (lic['admins'] !== undefined) {
+                                const adminsCreated = await db.user.findAll({
+                                    where:{
+                                        type: 'admin'
+
+                                }})
+                                lic['admins'] = { total: lic['admins'], used: adminsCreated.length };
+                            }
+                            if (lic['gateways'] !== undefined) {
+                                const gatewaysCreated = await db.gateway.findAll()
+                                lic['gateways'] = { total: lic['gateways'], used: gatewaysCreated.length };
+                            }
+                            if (lic['online'] !== undefined) {
+                                const usersOnline = await getConnections()
+                                lic['online'] = { total: lic['online'], used: usersOnline.length };
+                            }
+
+
                             conn.send(JSON.stringify({
                                 api: "admin",
-                                mt: "LicenseMessageResult",
-                                licenseUsed: licUsed,
-                                licenseToken: licenseAppToken.value,
-                                licenseFile: licenseAppFile.value,
+                                mt: "ConfigLicenseResult",
+                                license: lic,
+                                licenseKey: licenseKey.value,
+                                licenseFile: licenseFile.value,
                                 licenseActive: JSON.stringify(lic),
-                                licenseInstallDate: licenseAppFile.createdAt
+                                licenseInstallDate: licenseFile.updatedAt
                             }));
                         }
-                        if (obj.mt == "UpdateConfigLicenseMessage") {
-                            try {
-                                var lic = decrypt(obj.licenseToken, obj.licenseFile)
-                                log("UpdateConfigLicenseMessage: License decrypted: " + JSON.stringify(lic));
-                                const objToUpdate ={
-                                    value: String(obj.licenseFile), 
-                                    updatedAt: getDateNow()//new Date().toISOString().slice(0, 16),
-        
-                                }
-                                const updateConfigResult = await db.config.update(objToUpdate,
-                                    {
-                                      where: {
-                                        entry: 'licenseAppFile',
-                                        updatedAt: getDateNow()
-                                      },
-                                    });
-    
-                                // Config.licenseAppFile = obj.licenseFile;
-                                // Config.licenseInstallDate = getDateNow();
-                                // Config.save();
-                                conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigLicenseMessageSuccess", result: updateConfigResult }));
-            
-                            } catch (e) {
-                                conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigMessageErro" }));
-                                log("ERRO UpdateConfigLicenseMessage:" + e);
-            
-            
-                            }
+                        if (obj.mt == "DevCreateLicense") {
+                            
+                            const hash = await encryptLicenseFile(JSON.stringify(obj.value), obj.key);
+                            conn.send(JSON.stringify({
+                                api: "admin",
+                                mt: "DevCreateLicenseResult",
+                                licenseHash: hash
+                            }));
                         }
                         //#endregion
                         //#region BUTTONS
@@ -803,28 +771,6 @@ export const handleConnection = async (conn, req) => {
                                     if (conditions.length > 0) {
                                         query += " WHERE " + conditions.join(" AND ");
                                     }
-                                    
-                                    // Database.exec(query)
-                                    //     .then(function (data) {
-                                    //         log("result=" + JSON.stringify(data, null, 4));
-    
-                                    //         var jsonData = JSON.stringify(data, null, 4);
-                                    //         var maxFragmentSize = 50000; // Defina o tamanho máximo de cada fragmento
-                                    //         var fragments = [];
-                                    //         for (var i = 0; i < jsonData.length; i += maxFragmentSize) {
-                                    //             fragments.push(jsonData.substr(i, maxFragmentSize));
-                                    //         }
-                                    //         // Enviar cada fragmento separadamente através do websocket
-                                    //         for (var i = 0; i < fragments.length; i++) {
-                                    //             var isLastFragment = i === fragments.length - 1;
-                                    //             conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, src: obj.src }));
-                                    //         }
-    
-                                    //         //conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: JSON.stringify(data, null, 4), src: obj.src }));
-                                    //     })
-                                    //     .onerror(function (error, errorText, dbErrorCode) {
-                                    //         conn.send(JSON.stringify({ api: "admin", mt: "Error", result: String(errorText), src: obj.src }));
-                                    //     });
                                     // Execute a consulta usando sequelize.query()
                                     var data = await db.sequelize.query(query, {
                                         type: QueryTypes.SELECT
@@ -838,7 +784,7 @@ export const handleConnection = async (conn, req) => {
                                     // Enviar cada fragmento separadamente através do websocket
                                     for (var i = 0; i < fragments.length; i++) {
                                         var isLastFragment = i === fragments.length - 1;
-                                        conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, src: obj.src }));
+                                        conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i, src: obj.src }));
                                     }
                                     break;
                                 case "RptActivities":
@@ -851,27 +797,6 @@ export const handleConnection = async (conn, req) => {
                                     if (conditions.length > 0) {
                                         query += " WHERE " + conditions.join(" AND ");
                                     }
-                                    // Database.exec(query)
-                                    //     .oncomplete(function (data) {
-                                    //         log("result=" + JSON.stringify(data, null, 4));
-    
-                                    //         var jsonData = JSON.stringify(data, null, 4);
-                                    //         var maxFragmentSize = 50000; // Defina o tamanho máximo de cada fragmento
-                                    //         var fragments = [];
-                                    //         for (var i = 0; i < jsonData.length; i += maxFragmentSize) {
-                                    //             fragments.push(jsonData.substr(i, maxFragmentSize));
-                                    //         }
-                                    //         // Enviar cada fragmento separadamente através do websocket
-                                    //         for (var i = 0; i < fragments.length; i++) {
-                                    //             var isLastFragment = i === fragments.length - 1;
-                                    //             conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, src: obj.src }));
-                                    //         }
-    
-                                    //         //conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: JSON.stringify(data, null, 4), src: obj.src }));
-                                    //     })
-                                    //     .onerror(function (error, errorText, dbErrorCode) {
-                                    //         conn.send(JSON.stringify({ api: "admin", mt: "Error", result: String(errorText), src: obj.src }));
-                                    //     });
                                     // Execute a consulta usando sequelize.query()
                                     var data = await db.sequelize.query(query, {
                                         type: QueryTypes.SELECT
@@ -885,7 +810,7 @@ export const handleConnection = async (conn, req) => {
                                     // Enviar cada fragmento separadamente através do websocket
                                     for (var i = 0; i < fragments.length; i++) {
                                         var isLastFragment = i === fragments.length - 1;
-                                        conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, src: obj.src }));
+                                        conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i, src: obj.src }));
                                     }
                                     break;
                                 case "RptAvailability":
@@ -897,49 +822,29 @@ export const handleConnection = async (conn, req) => {
                                     if (conditions.length > 0) {
                                         query += " WHERE " + conditions.join(" AND ");
                                     }
-    
-                                    // Database.exec(query)
-                                    //     .oncomplete(function (data) {
-                                    //         log("result=" + JSON.stringify(data, null, 4));
-    
-                                    //         var jsonData = JSON.stringify(data, null, 4);
-                                    //         var maxFragmentSize = 50000; // Defina o tamanho máximo de cada fragmento
-                                    //         var fragments = [];
-                                    //         for (var i = 0; i < jsonData.length; i += maxFragmentSize) {
-                                    //             fragments.push(jsonData.substr(i, maxFragmentSize));
-                                    //         }
-                                    //         // Enviar cada fragmento separadamente através do websocket
-                                    //         for (var i = 0; i < fragments.length; i++) {
-                                    //             var isLastFragment = i === fragments.length - 1;
-                                    //             conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, src: obj.src }));
-                                    //         }
-    
-                                    //         //conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: JSON.stringify(data, null, 4), src: obj.src }));
-                                    //     })
-                                    //     .onerror(function (error, errorText, dbErrorCode) {
-                                    //         conn.send(JSON.stringify({ api: "admin", mt: "Error", result: String(errorText), src: obj.src }));
-                                    //     });
                                     // Execute a consulta usando sequelize.query()
                                     var data = await db.sequelize.query(query, {
                                         type: QueryTypes.SELECT
                                     });
-				    var jsonData = JSON.stringify(data, null, 4);
-				    var maxFragmentSize = 50000; // Defina o tamanho m�ximo de cada fragmento
-				    var fragments = [];
-				    for (var i = 0; i < jsonData.length; i += maxFragmentSize) {
-				        fragments.push(jsonData.substr(i, maxFragmentSize));
-				    }
-				    // Enviar cada fragmento separadamente atrav�s do websocket
-				    for (var i = 0; i < fragments.length; i++) {
-				    var isLastFragment = i === fragments.length - 1;
-				        conn.send(JSON.stringify({
-				        api: "admin",
-				        mt: "SelectFromReportsSuccess",
-				        result: fragments[i],
-				        lastFragment: isLastFragment,
-				        src: obj.src
-					    }));
-				    }
+                                    var jsonData = JSON.stringify(data, null, 4);
+                                    var maxFragmentSize = 50000; // Defina o tamanho m�ximo de cada fragmento
+                                    var fragments = [];
+                                    for (var i = 0; i < jsonData.length; i += maxFragmentSize) {
+                                        fragments.push(jsonData.substr(i, maxFragmentSize));
+                                    }
+                                    // Enviar cada fragmento separadamente atrav�s do websocket
+                                    for (var i = 0; i < fragments.length; i++) {
+                                    var isLastFragment = i === fragments.length - 1;
+                                        conn.send(JSON.stringify({
+                                        api: "admin",
+                                        mt: "SelectFromReportsSuccess",
+                                        result: fragments[i],
+                                        lastFragment: isLastFragment,
+                                        totalFragments:fragments.length, 
+                                        thisFragment:i,
+                                        src: obj.src
+                                        }));
+                                    }
                                     break;
                                 case "RptSensors":
                                         var query;
@@ -961,8 +866,9 @@ export const handleConnection = async (conn, req) => {
                                             if (conditions.length > 0) {
                                                 query += " WHERE " + conditions.join(" AND ");
                                             }
-                                        }
 
+                                        }
+                                        query += " ORDER BY id";
                                         // Execute a consulta usando sequelize.query()
                                         var data = await db.sequelize.query(query, {
                                             type: QueryTypes.SELECT
@@ -978,7 +884,7 @@ export const handleConnection = async (conn, req) => {
                                         // Enviar cada fragmento separadamente através do websocket
                                         for (var i = 0; i < fragments.length; i++) {
                                             var isLastFragment = i === fragments.length - 1;
-                                            conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, src: obj.src }));
+                                            conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i, src: obj.src }));
                                         }
                                     break;
                             }        

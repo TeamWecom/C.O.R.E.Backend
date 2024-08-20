@@ -27,7 +27,8 @@ import { decodePayloadUC50X } from '../utils/milesightPayloadDecoders/UC50xDecod
 import { decodePayloadWS202 } from '../utils/milesightPayloadDecoders/WS202Decoder.js';
 import { decodePayloadAM307 } from '../utils/milesightPayloadDecoders/AM307Decoder.js';
 import { decodePayloadWS156 } from '../utils/milesightPayloadDecoders/WS156Decoder.js';
-
+import { presenceSubscription, callEvents } from '../controllers/innovaphoneController.js'
+import fs from 'fs';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -302,6 +303,82 @@ router.post('/controllerReceived', async (req, res) => {
     } catch (e) {
         return res.status(500).send(e);
     }
+});
+
+// Rota para receber uma mensagem Innovaphone
+router.post('/innovaphone/presence', async (req, res) => {
+    try {
+        const body = req.body;
+        log("webServerAPIRoutes /innovaphone/presence: " + JSON.stringify(body))
+        presenceSubscription(body)
+        res.status(200).send();
+    } catch (e) {
+        res.status(500).send(e);
+    }
+});
+router.post('/innovaphone/callEvents', async (req, res) => {
+    try {
+        const body = req.body;
+        log("webServerAPIRoutes /innovaphone/callEvents: " + JSON.stringify(body))
+        callEvents(body)
+        res.status(200).send();
+    } catch (e) {
+        res.status(500).send(e);
+    }
+});
+
+// Endpoint para capturar dados enviados via PUT e salvar como arquivo
+router.put('/innovaphone/recording/:filename', (req, res) => {
+    const filePath = path.join(__dirname, '../httpfiles/uploads/', req.params.filename);
+
+    // Cria um stream de escrita para salvar o arquivo no disco
+    const writeStream = fs.createWriteStream(filePath);
+
+    req.on('data', (chunk) => {
+        writeStream.write(chunk);
+    });
+
+    req.on('end', () => {
+        writeStream.end();
+        res.status(200).send('File uploaded successfully.');
+    });
+
+    req.on('error', (err) => {
+        writeStream.end();
+        log(`Error handling request: ${err.message}`);
+        res.status(500).send('Error uploading file.');
+    });
+
+    writeStream.on('error', (err) => {
+        log(`Error saving file: ${err.message}`);
+        res.status(500).send('Error saving file.');
+    });
+});
+// Tratamento da requisição PROPFIND
+router.propfind('/innovaphone/recording/', (req, res) => {
+    console.log('Received PROPFIND request');
+    console.log('XML Body:', req.body);
+
+    // Aqui você pode processar o XML recebido e gerar uma resposta adequada
+
+    const responseXml = `<?xml version="1.0" encoding="utf-8"?>
+        <multistatus xmlns="DAV:">
+            <response>
+                <href>/api/innovaphone/recording/</href>
+                <propstat>
+                    <prop>
+                        <resourcetype><collection/></resourcetype>
+                        <getcontentlength>0</getcontentlength>
+                        <creationdate>${new Date().toISOString()}</creationdate>
+                        <getlastmodified>${new Date().toUTCString()}</getlastmodified>
+                    </prop>
+                    <status>HTTP/1.1 200 OK</status>
+                </propstat>
+            </response>
+        </multistatus>`;
+
+    res.set('Content-Type', 'application/xml');
+    res.status(207).send(responseXml);
 });
 
 export default router;
