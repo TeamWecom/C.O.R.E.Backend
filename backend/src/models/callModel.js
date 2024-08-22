@@ -13,7 +13,8 @@ Call.init({
     call_connected: DataTypes.STRING,
     call_ended: DataTypes.STRING,
     status: DataTypes.INTEGER,
-    direction: DataTypes.STRING
+    direction: DataTypes.STRING,
+    record_id: DataTypes.STRING
   }, {
     sequelize:db.sequelize,
     modelName: 'call',

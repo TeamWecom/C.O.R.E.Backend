@@ -6,7 +6,16 @@ import { QueryTypes, Op } from 'sequelize';
 import { stringToBase64 } from '../utils/typeHelpers.js';
 import { log } from '../utils/log.js';
 import {sendHttpPostRequest, sendHttpGetRequest } from '../managers/httpClient.js'
+import { exec } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import fs from 'fs';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Define o diretório onde os arquivos estáticos serão servidos
+const staticDir = path.join(__dirname, '../httpfiles/');
 
 let presences = [];
 
@@ -125,6 +134,25 @@ export const pbxTableUsers = async () => {
     }
 }
 
+export const propfind = () =>{
+    const responseXml = `<?xml version="1.0" encoding="utf-8"?>
+        <multistatus xmlns="DAV:">
+            <response>
+                <href>/api/innovaphone/recording/</href>
+                <propstat>
+                    <prop>
+                        <resourcetype><collection/></resourcetype>
+                        <getcontentlength>0</getcontentlength>
+                        <creationdate>${new Date().toISOString()}</creationdate>
+                        <getlastmodified>${new Date().toUTCString()}</getlastmodified>
+                    </prop>
+                    <status>HTTP/1.1 200 OK</status>
+                </propstat>
+            </response>
+        </multistatus>`;
+        return responseXml;
+}
+
 export const presenceSubscription = async (obj) => {
     try{
         const userInn = await db.user.findOne({
@@ -182,6 +210,46 @@ export const requestPresences = async (guid) => {
 
 export const callEvents = async (obj) =>{
     try{
+        if(obj.mode == 'CallRecordId'){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+
+            if(user){
+                const btn = await db.button.findOne({
+                    where: {
+                        id: obj.btn_id,
+                    }
+                })
+                if(btn){
+                    //send(user.guid, {api: "user", mt: "CallDisconnected", btn_id: btn.id})
+                    //broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
+                }
+
+                const call = await db.call.findOne({
+                    where: {
+                      guid: user.guid,
+                      number: btn.button_prt,
+                      status: 1
+                    },
+                    order: [
+                      ['id', 'DESC']
+                    ]
+                  });
+                  
+                if(call){
+                    const callToUpdateResult = await db.call.update(
+                        { record_id: obj.record_id,
+                            status: 1
+                         }, // Valores a serem atualizados
+                        { where: { id: parseInt(call.id) } } // Condição para atualização
+                    );
+                    log("innovaphoneController:callEvents:CallRecordId:callToUpdateResult "+callToUpdateResult)
+                }
+            } 
+        }
         if(obj.mode == 'CallDisconnected'){
             const user = await db.user.findOne({
                 where:{
@@ -325,6 +393,107 @@ export const pbxStatus = async () => {
     catch(e){
         return e;
     }
+}
+
+export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, filenameBase) => {
+    try{
+        const rawFilePath = path.join(outputDirectory, filenameBase + '.raw');
+        const wavFilePath = path.join(outputDirectory, filenameBase + '.wav');
+
+        // Comando para determinar todos os SSRCs presentes no arquivo .pcap
+        const findSSRCCommand = `tshark -r ${pcapFilePath} -q -z rtp,streams`;
+
+        exec(findSSRCCommand, (err, stdout, stderr) => {
+            if (err) {
+                log(`innovaphoneController:convertRecordingPcapToWav: Error finding SSRCs: ${stderr}`);
+                return err;
+            }
+
+            // Encontrar todos os SSRCs no resultado
+            const ssrcMatches = stdout.match(/0x[0-9A-Fa-f]+/g);
+            if (!ssrcMatches || ssrcMatches.length === 0) {
+                log(`innovaphoneController:convertRecordingPcapToWav: No SSRCs found.`);
+                return new Error("No SSRCs found in the RTP stream.");
+            }
+
+            log(`innovaphoneController:convertRecordingPcapToWav: Found SSRCs: ${ssrcMatches.join(', ')}`);
+
+            // Extrair todos os fluxos RTP em um único arquivo RAW
+            const tsharkCommand = ssrcMatches.map(ssrc => 
+                `tshark -r ${pcapFilePath} -Y "rtp && rtp.ssrc==${ssrc}" -T fields -e rtp.payload`
+            ).join(' | ') + ` | xxd -r -p > ${rawFilePath}`;
+
+            exec(tsharkCommand, (err, stdout, stderr) => {
+                if (err) {
+                    log(`innovaphoneController:convertRecordingPcapToWav: Error running tshark: ${stderr}`);
+                    return err;
+                }
+
+                log(`innovaphoneController:convertRecordingPcapToWav: tshark extraction complete: ${rawFilePath}`);
+
+                // Converter o arquivo RAW para WAV
+                const soxCommand = `sox -t raw -r 8000 -e u-law -b 8 -c 1 ${rawFilePath} ${wavFilePath}`;
+
+                exec(soxCommand, (err, stdout, stderr) => {
+                    if (err) {
+                        log(`innovaphoneController:convertRecordingPcapToWav: Error running sox: ${stderr}`);
+                        return err;
+                    }
+
+                    log(`innovaphoneController:convertRecordingPcapToWav: sox conversion complete: ${wavFilePath}`);
+                    // Remover arquivos .pcap e .raw após o sucesso
+                    fs.unlink(rawFilePath, (err) => {
+                        if (err) {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Error deleting raw file: ${err}`);
+                        } else {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Deleted raw file: ${rawFilePath}`);
+                        }
+                    });
+
+                    fs.unlink(pcapFilePath, (err) => {
+                        if (err) {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Error deleting pcap file: ${err}`);
+                        } else {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Deleted pcap file: ${pcapFilePath}`);
+                        }
+                    });
+
+                    return wavFilePath;
+                });
+            });
+        });
+    }catch(e){
+        return e;
+    }
+
+}
+
+export async function returnRecordLink(recordList) {
+    return new Promise((resolve, reject) => {
+        const outputDirectory = path.join(__dirname, '../httpfiles/recordings');
+        // Ler todos os arquivos do diretório de saída
+        fs.readdir(outputDirectory, (err, files) => {
+            if (err) {
+                return resolve(recordList);
+            }
+
+            // Percorrer a lista de objetos
+            recordList.forEach(record => {
+                // Verificar se algum arquivo corresponde ao record_id
+                const matchingFile = files.find(file => file.includes(record.record_id));
+                
+                // Se encontrar uma correspondência, atribuir o nome do arquivo ao record_id
+                if (matchingFile) {
+                    record.record_link = '/api/innovaphone/recordings/'+matchingFile;
+                }else{
+                    record.record_link = '';
+                }
+            });
+
+            // Retornar a lista editada
+            return resolve(recordList);
+        });
+    });
 }
 
 function updateOrAddPresence(obj) {

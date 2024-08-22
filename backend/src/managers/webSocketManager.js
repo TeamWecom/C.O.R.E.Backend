@@ -11,14 +11,13 @@ export const addConnection = async (conn) => {
     const connCount = connectionsUser.filter(client => client.guid === conn.guid);
     if(connCount.length==1){
         //notifia a todos sobre o noo login
-        //broadcast({ mt: "UserOnline", session: conn.session, guid: conn.guid }); //Substituído pelo innovaphoneController
-
+        broadcast({ mt: "CoreUserOnline", guid: conn.guid }); //Substituído pelo innovaphoneController
         // Insert into DB the event of new login
         const today = getDateNow();
         const msg = { guid: conn.guid, name: conn.dn, date: today, status: "Login", details: "APP" };
         await db.availability.create(msg);
     }
-    conn.send(JSON.stringify({ mt: "UserSessionResult", session: conn.session, guid: conn.guid }));
+    conn.send(JSON.stringify({ mt: "UserSessionResult", guid: conn.guid }));
     
 };
 
@@ -28,7 +27,7 @@ export const removeConnection = async (conn) => {
     const connCount = connectionsUser.filter(client => client.guid === conn.guid);
     if(connCount.length==0 && conn.guid){
         //notifia a todos sobre o noo login
-        //broadcast({ mt: "UserOffline", session: conn.session, guid: conn.guid });
+        broadcast({ mt: "CoreUserOffline", guid: conn.guid });
     }
 
     // Insert into DB the event

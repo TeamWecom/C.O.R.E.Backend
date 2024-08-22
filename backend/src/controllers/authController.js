@@ -6,6 +6,8 @@ import jwt from 'jsonwebtoken';
 import { generateRandomBigInt } from '../utils/randomValue.js';
 import { getDateNow } from '../utils/getDateNow.js';
 import { validateToken } from '../utils/validadeToken.js';
+import { generateGUID } from '../utils/generateGuid.js';
+import { getConnections } from '../managers/webSocketManager.js';
 
 export const createUser = async (token, userData) => {
     const decoded = await validateToken(token);
@@ -47,7 +49,6 @@ export const signInUser = async ({ email, password, type }) => {
         log('Email não encontrado ' + email);
         throw new Error('emailNotFound');
     }
-
     const passwordValid = await bcrypt.compare(password, user.password);
     if (!passwordValid) {
         log('Senha inválida ' + email);
@@ -59,10 +60,17 @@ export const signInUser = async ({ email, password, type }) => {
         throw new Error('typeNotFound');
     }
 
+    const sockConnections = getConnections();
+    const sockConn = sockConnections.filter(conn => conn.guid === user.guid)
+    if(sockConn.length != 0){
+        log('Login duplicado para este usuário ' + email);
+        throw new Error('duplicatedLogin');
+    }
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_REFRESH_EXPIRATION
     });
     log('Sucesso Login de ' + email);
+    const session = generateGUID();
     return {
         id: user.id,
         guid: user.guid,
@@ -71,6 +79,7 @@ export const signInUser = async ({ email, password, type }) => {
         createdat: user.createdat,
         type: user.type,
         accessToken: token,
+        session: session
     };
 };
 

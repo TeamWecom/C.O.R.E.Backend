@@ -6,6 +6,8 @@ import https from 'https';
 import bodyParser from 'body-parser';
 import fs from 'fs';
 import APIRouter from './routes/webServerAPIRoutes.js';
+import InnovaphoneRouter from './routes/webServerInnovaphoneRoutes.js';
+import MilesightRouter from './routes/webServerMilesightRoutes.js';
 import UIRouter from './routes/webServerUIRoutes.js';
 import {handleConnection} from './routes/websocketRoutes.js';
 import cors from 'cors';
@@ -54,7 +56,7 @@ await loadOrInstallLicenseKey()
 const decryptedLicense = await decryptedLicenseFile()
 
 let enableHttps = config.useHttps === 'true';
-if (!enableHttps) {
+if (enableHttps) {
     // Configuração do servidor HTTPS
     const options = {
         key: fs.readFileSync('/home/wecom/wecom.com.br.key'),
@@ -127,7 +129,11 @@ app.use('/ui', UIRouter);
 
 // Configuração do WebServer
 app.use(express.json());
+app.use('/api/innovaphone', InnovaphoneRouter);
+app.use('/api/milesight', MilesightRouter);
 app.use('/api', APIRouter);
+
+
 
 // Configurar body-parser para processar XML
 app.use(bodyParser.xml({

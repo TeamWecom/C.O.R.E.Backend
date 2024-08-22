@@ -13,7 +13,7 @@ import { generateGUID } from '../utils/generateGuid.js';
 import {sendHttpPostRequest, sendHttpGetRequest} from '../managers/httpClient.js';
 import { getParametersByDeviceName} from '../utils/milesightParameters.js';
 import { raw } from 'express';
-import {pbxStatus, pbxTableUsers, requestPresences} from '../controllers/innovaphoneController.js'
+import {pbxStatus, pbxTableUsers, requestPresences, returnRecordLink} from '../controllers/innovaphoneController.js'
 import { decryptedLicenseFile, returnLicenseFile, returnLicenseKey ,encryptLicenseFile} from './licenseController.js';
 
 let license = { Users: 10 }; // Licença temporária
@@ -32,7 +32,7 @@ export const handleConnection = async (conn, req) => {
             }
 
             log('webSocketController:handleConnection Token JWT válido:', decoded);
-            const session = generateGUID();
+            //const session = generateGUID();
             conn.guid = user.guid;
             conn.dn = user.name;
             conn.sip = user.sip;
@@ -42,13 +42,13 @@ export const handleConnection = async (conn, req) => {
                 const foundConn = getConnections().filter(c => c === conn);
                 if (foundConn.length === 0) {
                     log("webSocketController:handleConnection connectionsUser: not found conn");
-                    conn.session = session;
+                    //conn.session = session;
                     addConnection(conn);
                     
                 }
             } else {
                 log("webSocketController:handleConnection connectionsUser: connectionsUser.length == 0");
-                conn.session = session;
+                //conn.session = session;
                 addConnection(conn);
             }
         })
@@ -206,11 +206,12 @@ export const handleConnection = async (conn, req) => {
 
                             const configResult = await db.config.findAll();
                             conn.send(JSON.stringify({ api: "user", mt: "ConfigResult", result: configResult }));
+
+                            const connectionsUser = await getConnections()
+                            connectionsUser.forEach(c =>{
+                                conn.send(JSON.stringify({api: "user", mt: "CoreUserOnline", guid: c.guid }));
+                            })
                         
-                        }
-                        if (obj.mt == "UserSession") {
-                            //var session = generateGUID()
-                            conn.send(JSON.stringify({ api: "user", mt: "UserSessionResult", session: conn.session, guid: conn.guid  }));
                         }
                         
                         //#endregion
@@ -410,10 +411,6 @@ export const handleConnection = async (conn, req) => {
                         break;
                     case "admin":
                         //#region INICIALIZAÇÃO
-                        if (obj.mt == "UserSession") {
-                            //var session = generateGUID()
-                            conn.send(JSON.stringify({ api: "admin", mt: "UserSessionResult", session: conn.session, guid: conn.guid  }));
-                        }
                         if (obj.mt == "TableUsers") {
                             log("webSocketController: TableUsers: reducing the pbxTableUser object to send to user");
                             var list_users = await db.user.findAll({
@@ -432,6 +429,11 @@ export const handleConnection = async (conn, req) => {
 
                             const configResult = await db.config.findAll();
                             conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: configResult }));
+
+                            const connectionsUser = await getConnections()
+                            connectionsUser.forEach(c =>{
+                                conn.send(JSON.stringify({api: "admin", mt: "CoreUserOnline", guid: c.guid }));
+                            })
                         }
                         //#endregion
                         //#region CONFIG
@@ -776,16 +778,35 @@ export const handleConnection = async (conn, req) => {
                                         type: QueryTypes.SELECT
                                     });
                                     var jsonData = JSON.stringify(data, null, 4);
-                                    var maxFragmentSize = 50000; // Defina o tamanho máximo de cada fragmento
-                                    var fragments = [];
-                                    for (var i = 0; i < jsonData.length; i += maxFragmentSize) {
-                                        fragments.push(jsonData.substr(i, maxFragmentSize));
-                                    }
-                                    // Enviar cada fragmento separadamente através do websocket
-                                    for (var i = 0; i < fragments.length; i++) {
-                                        var isLastFragment = i === fragments.length - 1;
-                                        conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i, src: obj.src }));
-                                    }
+                                    let jsonDataWithLinks = [];
+                                    returnRecordLink(data).then(result => {
+                                            jsonDataWithLinks = result;
+                                            const strData = JSON.stringify(jsonDataWithLinks, null, 4);
+                                            var maxFragmentSize = 50000; // Defina o tamanho máximo de cada fragmento
+                                            var fragments = [];
+                                            for (var i = 0; i < strData.length; i += maxFragmentSize) {
+                                                fragments.push(strData.substr(i, maxFragmentSize));
+                                            }
+                                            // Enviar cada fragmento separadamente através do websocket
+                                            for (var i = 0; i < fragments.length; i++) {
+                                                var isLastFragment = i === fragments.length - 1;
+                                                conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i+1, src: obj.src }));
+                                            }
+                                         }).catch(err => {
+                                            jsonDataWithLinks = err;
+                                            const strData = JSON.stringify(jsonDataWithLinks, null, 4);
+                                            var maxFragmentSize = 50000; // Defina o tamanho máximo de cada fragmento
+                                            var fragments = [];
+                                            for (var i = 0; i < strData.length; i += maxFragmentSize) {
+                                                fragments.push(strData.substr(i, maxFragmentSize));
+                                            }
+                                            // Enviar cada fragmento separadamente através do websocket
+                                            for (var i = 0; i < fragments.length; i++) {
+                                                var isLastFragment = i === fragments.length - 1;
+                                                conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i+1, src: obj.src }));
+                                            }
+                                         });
+                                         
                                     break;
                                 case "RptActivities":
                                     var query = "SELECT *  FROM tbl_activities";
@@ -810,7 +831,7 @@ export const handleConnection = async (conn, req) => {
                                     // Enviar cada fragmento separadamente através do websocket
                                     for (var i = 0; i < fragments.length; i++) {
                                         var isLastFragment = i === fragments.length - 1;
-                                        conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i, src: obj.src }));
+                                        conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i+1, src: obj.src }));
                                     }
                                     break;
                                 case "RptAvailability":
@@ -841,7 +862,7 @@ export const handleConnection = async (conn, req) => {
                                         result: fragments[i],
                                         lastFragment: isLastFragment,
                                         totalFragments:fragments.length, 
-                                        thisFragment:i,
+                                        thisFragment:i+1,
                                         src: obj.src
                                         }));
                                     }
@@ -884,7 +905,7 @@ export const handleConnection = async (conn, req) => {
                                         // Enviar cada fragmento separadamente através do websocket
                                         for (var i = 0; i < fragments.length; i++) {
                                             var isLastFragment = i === fragments.length - 1;
-                                            conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i, src: obj.src }));
+                                            conn.send(JSON.stringify({ api: "admin", mt: "SelectFromReportsSuccess", result: fragments[i], lastFragment: isLastFragment, totalFragments:fragments.length, thisFragment:i+1, src: obj.src }));
                                         }
                                     break;
                             }        
