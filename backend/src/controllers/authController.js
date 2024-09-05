@@ -8,13 +8,14 @@ import { getDateNow } from '../utils/getDateNow.js';
 import { validateToken } from '../utils/validadeToken.js';
 import { generateGUID } from '../utils/generateGuid.js';
 import { getConnections } from '../managers/webSocketManager.js';
+import { licenseFileWithUsage } from './licenseController.js';
 
 export const createUser = async (token, userData) => {
     const decoded = await validateToken(token);
     const user = await db.user.findOne({ where: { id: decoded.id } });
 
     if (!user) {
-        log("ID no Token JWT inválido: ");
+        log("authController:createUser: ID no Token JWT inválido");
         throw new Error('Token de autenticação inválido');
     }
 
@@ -22,8 +23,15 @@ export const createUser = async (token, userData) => {
     const userExists = await db.user.findOne({ where: { email } });
 
     if (userExists) {
-        log("Email duplicado: " + email);
+        log("authController:createUser: Email duplicado: " + email);
         throw new Error('emailDuplicated');
+    }
+
+    const license = await licenseFileWithUsage();
+
+    if (license[type] && license[type].used >= license[type].total){
+        log("authController:createUser: Limite de usuáros atingido, contratar nova licença: " + type);
+        throw new Error('noMoreLicenses');
     }
 
     const obj = {
@@ -37,39 +45,45 @@ export const createUser = async (token, userData) => {
     };
 
     await db.user.create(obj);
-    log("Usuário criado: " + email);
+    log("authController:createUser: Usuário criado: " + email);
     return { result: 'success' };
 };
 
 export const signInUser = async ({ email, password, type }) => {
-    log('Tentativa de Login de ' + email);
+    log('authController:signInUser: Tentativa de Login de ' + email);
     const user = await db.user.findOne({ where: { email } });
 
     if (!user) {
-        log('Email não encontrado ' + email);
+        log('authController:signInUser: Email não encontrado ' + email);
         throw new Error('emailNotFound');
     }
     const passwordValid = await bcrypt.compare(password, user.password);
     if (!passwordValid) {
-        log('Senha inválida ' + email);
+        log('authController:signInUser: Senha inválida ' + email);
         throw new Error('incorrectPassword');
     }
 
     if (user.type === 'user' && type === 'admin') {
-        log('Tipo de Login inválido ' + email);
+        log('authController:signInUser: Tipo de Login inválido ' + email);
         throw new Error('typeNotFound');
+    }
+
+    const license = await licenseFileWithUsage();
+    if (license.online.used >= license.online.total){
+        log("authController:signInUser: Limite de usuáros atingido, contratar nova licença: " + type);
+        throw new Error('noMoreLicenses');
     }
 
     const sockConnections = getConnections();
     const sockConn = sockConnections.filter(conn => conn.guid === user.guid)
     if(sockConn.length != 0){
-        log('Login duplicado para este usuário ' + email);
+        log('authController:signInUser: Login duplicado para este usuário ' + email);
         throw new Error('duplicatedLogin');
     }
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_REFRESH_EXPIRATION
     });
-    log('Sucesso Login de ' + email);
+    log('authController:signInUser: Sucesso Login de ' + email);
     const session = generateGUID();
     return {
         id: user.id,
@@ -88,11 +102,10 @@ export const verifyToken = async (token) => {
     const user = await db.user.findOne({ where: { id: decoded.id } });
 
     if (!user) {
-        log("ID no Token JWT inválido: ");
+        log("authController:verifyToken: ID no Token JWT inválido");
         throw new Error('Token de autenticação inválido');
     }
-
-    log('Token JWT válido:', decoded);
+    log("authController:verifyToken: Token JWT válido");
     return { result: decoded };
 };
 
@@ -123,7 +136,7 @@ export const updateUser = async (token, userData) => {
     const user = await db.user.findOne({ where: { id: decoded.id } });
 
     if (!user) {
-        log("ID no Token JWT inválido: ");
+        log("authController:updateUser: ID no Token JWT inválido");
         throw new Error('Token de autenticação inválido');
     }
 
@@ -146,7 +159,7 @@ export const resetPassword = async (token, { id, newPassword }) => {
     const user = await db.user.findOne({ where: { id: decoded.id } });
 
     if (!user) {
-        log("ID no Token JWT inválido: ");
+        log("authController:resetPassword: ID no Token JWT inválido");
         throw new Error('Token de autenticação inválido');
     }
 
@@ -165,7 +178,7 @@ export const listUsers = async (token) => {
     const user = await db.user.findOne({ where: { id: decoded.id } });
 
     if (!user) {
-        log("ID no Token JWT inválido: ");
+        log("authController:listUsers: ID no Token JWT inválido");
         throw new Error('Token de autenticação inválido');
     }
 
@@ -178,7 +191,7 @@ export const deleteUser = async (token, { id }) => {
     const user = await db.user.findOne({ where: { id: decoded.id } });
 
     if (!user) {
-        log("ID no Token JWT inválido: ");
+        log("authController:deleteUser: ID no Token JWT inválido");
         throw new Error('Token de autenticação inválido');
     }
 

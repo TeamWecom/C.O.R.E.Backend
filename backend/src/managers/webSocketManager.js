@@ -38,10 +38,10 @@ export const removeConnection = async (conn) => {
     }
 };
 
-export const send = (guid, message) => {
+export const send = async (guid, message) => {
     let result = false;
     try {
-        connectionsUser.forEach(client => {
+        connectionsUser.forEach( async client =>  {
             if (client.guid === guid) {
                 client.send(JSON.stringify(message));
                 log(`################################# Mensagem enviada: Client Guid: ${client.guid} CN: ${client.dn} notified about message: ${JSON.stringify(message.mt)}`);

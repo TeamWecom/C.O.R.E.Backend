@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "aedes": "^0.51.3",
     "atob": "^2.1.2",
     "axios": "^1.6.8",
     "cors": "^2.8.5",

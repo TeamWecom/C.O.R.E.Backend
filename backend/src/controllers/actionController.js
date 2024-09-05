@@ -15,6 +15,7 @@ dotenvConfig();
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { getDevices, TriggerCommand } from './milesightController.js';
+import {innovaphoneMakeCall} from './innovaphoneController.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -29,7 +30,7 @@ const config = configFile[env];
 
 // Uso dos dados de configuração
 const pbxConfig = config.pbxConfig;
-log(pbxConfig);
+//log(pbxConfig);
 
 //const httpService = new HttpService();
 
@@ -43,7 +44,7 @@ export const triggerActionByStartType = async (from, prt, type) => {
             },
         })
         if (actions.length > 0) {
-            log("actionController:triggerActionByStartType: Ações aplicáveis encontradas:");
+            log(`actionController:triggerActionByStartType: Match Actions: ${actions.length}`);
             
             const result = await resolveAction(from, actions)
             
@@ -53,7 +54,7 @@ export const triggerActionByStartType = async (from, prt, type) => {
         }
         else {
             //log("actionController:triggerActionByStartType:actions is null " + JSON.stringify(actions));
-            return "Nenhuma ação aplicável encontrada.";;
+            return actions.length;
         }
 
 
@@ -77,7 +78,7 @@ export const triggerActionBySensor = async (obj) => {
 
         // Exibindo as ações aplicáveis
         if (acoesAplicaveis.length > 0) {
-            log("actionController:triggerActionBySensor: Ações aplicáveis encontradas:");
+            log(`actionController:triggerActionBySensor: Match Actions: ${acoesAplicaveis.length}`);
             
             const result = await resolveAction(obj.sensor_name, acoesAplicaveis)
             return result;
@@ -85,7 +86,7 @@ export const triggerActionBySensor = async (obj) => {
             
         } else {
             //log("danilo-req triggerActionBySensor: Nenhuma ação aplicável encontrada.");
-            return "Nenhuma ação aplicável encontrada.";
+            return acoesAplicaveis.length;
         }
 
     }catch(e){
@@ -107,61 +108,7 @@ async function resolveAction(from, actions){
                     break;
                 case "number":
                     log("actionController:resolveAction:number");
-                    // const callid = random.generateRandomBigInt(19);
-                    db.call.create({
-                        guid:ac.action_user,
-                        number: ac.action_exec_prt,
-                        call_started: getDateNow(),
-                        status: 1,
-                        direction:"out"
-                    }).then(async function(result){
-                        log("actionController:resolveAction: MakeCall: create.call success " + result);
-                        if(pbxConfig.pbxType === 'INNOVAPHONE'){
-                            // if(pbxConfig.customHeaders){
-                            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
-                            // }
-                            await sendHttpPostRequest(pbxConfig.host, { num: ac.action_exec_prt, mode: 'UserCall', sip: ac.action_exec_device, user: ac.action_user}, pbxConfig.customHeaders)
-                            .then(function(res){
-                                log("actionController:resolveAction: MakeCall: httpService.sendHttpPostRequest success " +res);
-                                return res
-                            })
-                            .catch (function (error, errorText, dbErrorCode) {
-                                log("actionController:resolveAction: MakeCall: httpService.sendHttpPostRequest error " + errorText);
-                                return errorText
-                            });
-                        }
-                        if(pbxConfig.pbxType === 'EPYGI'){                                    
-                            // if(pbxConfig.customHeaders){
-                            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
-                            // }
-                            
-                            await sendHttpPostRequest(pbxConfig.host, {
-                                restPeerIP: pbxConfig.restPeerIP,
-                                cmd: "CreateCall",
-                                username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
-                                password: pbxConfig.passwordEpygi, //Senha do ramal virtual
-                                displayName: "REST 3PCC 120",
-                                restCallID: result.id, //"7325840796693965112"
-                                ownerID: "REST Req2Call",
-                                sipUsername: "EmergencyS", //Nome mostrado durante o ring
-                                callSource: ac.action_exec_device,
-                                callDestination: ac.action_exec_prt
-                                },pbxConfig.customHeaders)
-                                .then(function(res){
-                                     //addObject(user, callid)
-                                    log("actionController:resolveAction: MakeCall: httpService.sendHttpPostRequest success "+res);
-                                    return res
-                                })
-                                .catch (function (error, errorText, dbErrorCode) {
-                                    log("actionController:resolveAction: MakeCall: httpService.sendHttpPostRequest error " + errorText);
-                                    return errorText
-                                });
-                        }
-            
-                    }).catch(function (error, errorText, dbErrorCode) {
-                        log("actionController:resolveAction: MakeCall: create.call error " + errorText);
-                        return errorText
-                    })  
+                    log(await makeCall(ac))
                     break;
                 case "button":
                     log("actionController:resolveAction:button");
@@ -259,4 +206,42 @@ function verificarAcoes(data, actions) {
     });
     log("actionController:verificarAcoes:return "+ acoes.length +" actions!")
     return acoes;
+}
+
+async function makeCall(action){
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: ac.action_user
+            }
+        })
+
+        let result = await db.call.create({
+            guid: ac.action_user,
+            number: action.action_exec_prt,
+            call_started: getDateNow(),
+            status: 1,
+            direction:"out",
+            device: action.action_exec_device,
+            btn_id: action.id
+        })
+        log("actionController:MakeCall: db.create.call success " + result.id);
+        log("actionController:MakeCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            const btn_temp = {button_type: ac.action_exec_type, button_prt: action.action_exec_prt, id: action.id, button_device: action.action_exec_device}
+            return await innovaphoneMakeCall(btn_temp, user)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+            
+        }
+    }catch(e){
+        log("actionController:MakeCall: error " + e)
+        return e
+    }  
 }

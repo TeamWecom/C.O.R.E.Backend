@@ -14,7 +14,10 @@ Call.init({
     call_ended: DataTypes.STRING,
     status: DataTypes.INTEGER,
     direction: DataTypes.STRING,
-    record_id: DataTypes.STRING
+    record_id: DataTypes.STRING,
+    btn_id: DataTypes.STRING,
+    call_innovaphone: DataTypes.INTEGER,
+    device: DataTypes.STRING,
   }, {
     sequelize:db.sequelize,
     modelName: 'call',

@@ -18,8 +18,62 @@ const __dirname = dirname(__filename);
 const staticDir = path.join(__dirname, '../httpfiles/');
 
 let presences = [];
+let pbxUsers = [];
 
+export const innovaphonePassiveRCCMonitor = async (user) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        log('innovaphoneController:innovaphonePassiveRCCMonitor: urlPbxTableUsers '+JSON.stringify(urlPbxTableUsers.value))
+    
 
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { 
+            mode: 'PassiveRCCMonitor', 
+            guid: user.sip
+        }, customHeaders.value)
+        log("innoaphoneController:innovaphonePassiveRCCMonitor: will return: " +JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innoaphoneController:innovaphonePassiveRCCMonitor: will return error: " +e);
+        return e;
+    }
+}
+export const innovaphonePassiveRCCMonitorEnd = async (user) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        log('innovaphoneController:innovaphonePassiveRCCMonitorEnd: urlPbxTableUsers '+JSON.stringify(urlPbxTableUsers.value))
+    
+
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { 
+            mode: 'PassiveRCCMonitorEnd', 
+            guid: user.sip
+        }, customHeaders.value)
+        log("innoaphoneController:innovaphonePassiveRCCMonitorEnd: will return: " +JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innoaphoneController:innovaphonePassiveRCCMonitorEnd: will return error: " +e);
+        return e;
+    }
+}
 export const innovaphoneMakeCall = async (btn, user) => {
     try {
         let urlPbxTableUsers = await db.config.findOne({
@@ -32,7 +86,7 @@ export const innovaphoneMakeCall = async (btn, user) => {
                 entry: 'customHeaders'
             }
         });
-        log('innovaphoneController:MakeCall: urlPbxTableUsers '+JSON.stringify(urlPbxTableUsers.value))
+        log('innovaphoneController:innovaphoneMakeCall: urlPbxTableUsers '+JSON.stringify(urlPbxTableUsers.value))
         if(btn.button_type == 'user'){
             const usersInn = await pbxTableUsers()
             const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
@@ -45,15 +99,312 @@ export const innovaphoneMakeCall = async (btn, user) => {
             guid: user.sip, 
             device: btn.button_device,
             btn_id: btn.id}, customHeaders.value)
-        log("innoaphoneController:MakeCall: will return: " +JSON.stringify(res.statusText));
+        log("innoaphoneController:innovaphoneMakeCall: will return: " +JSON.stringify(res.statusText));
         return res.statusText;
     }
     catch(e){
-        log("innoaphoneController:MakeCall: will return error: " +e);
+        log("innoaphoneController:innovaphoneMakeCall: will return error: " +e);
         return e;
     }
 }
+export const innovaphoneConnectCall = async (user, device, call) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        //const usersInn = await pbxTableUsers()
+        //const userInn = usersInn.filter(u => u.guid == user.sip )[0]
+        //const deviceInn = userInn.devices.filter(d => d.text == device)[0];
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", {
+            mode: 'ConnectCall', 
+            guid: user.sip, 
+            device: device,
+            call: call}, customHeaders.value)
+        log("innovaphoneController:innovaphoneConnectCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneConnectCall: will return error " + e);
+        return e;
+    }
+}
+export const innovaphoneHeldCall = async (btn, user) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        if(btn.button_type == 'user'){
+            const usersInn = await pbxTableUsers()
+            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+            btn.button_prt = userInn.e164
+        }
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: btn.button_prt, 
+            mode: 'HeldCall', 
+            guid: user.sip, 
+            device: btn.button_device,
+            btn_id: btn.id}, customHeaders.value)
+        log("innovaphoneController:innovaphoneHeldCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneHeldCall: will return error " + e);
+        return e;
+    }
+}
+export const innovaphoneHeldIncomingCall = async (user, device, num, call) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        //const usersInn = await pbxTableUsers()
+        //const userInn = usersInn.filter(u => u.guid == user.sip )[0]
+        //const deviceInn = userInn.devices.filter(d => d.text == device)[0];
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: num, 
+            mode: 'HeldIncomingCall', 
+            guid: user.sip, 
+            device: device,
+            call: call,
+            btn_id: ''}, customHeaders.value)
+        log("innovaphoneController:innovaphoneHeldIncomingCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneHeldIncomingCall: will return error " + e);
+        return e;
+    }
+}
+export const innovaphoneRedirectCall = async (btn, user, destination) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        if(btn.button_type == 'user'){
+            const usersInn = await pbxTableUsers()
+            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+            btn.button_prt = userInn.e164
+        }
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: btn.button_prt, 
+            mode: 'RedirectCall', 
+            guid: user.sip, 
+            device: btn.button_device,
+            btn_id: btn.id,
+            destination: destination}, customHeaders.value)
+        log("innovaphoneController:innovaphoneRedirectCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneRedirectCall: will return error " + e);
+        return e;
+    }
+}
+export const innovaphoneRedirectIncomingCall = async (user, device, call, destination) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        //const usersInn = await pbxTableUsers()
+        //const userInn = usersInn.filter(u => u.guid == user.sip )[0]
+        //const deviceInn = userInn.devices.filter(d => d.text == device)[0];
 
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { 
+            mode: 'RedirectIncomingCall', 
+            guid: user.sip, 
+            device: device,
+            btn_id: '',
+            call: call,
+            destination: destination}, customHeaders.value)
+        log("innovaphoneController:innovaphoneRedirectIncomingCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneRedirectIncomingCall: will return error " + e);
+        return e;
+    }
+}
+export const innovaphoneDtmfCall = async (btn, user, digit) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        if(btn.button_type == 'user'){
+            const usersInn = await pbxTableUsers()
+            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+            btn.button_prt = userInn.e164
+        }
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: btn.button_prt, 
+            mode: 'SendDtmfDigits', 
+            guid: user.sip, 
+            device: btn.button_device,
+            btn_id: btn.id,
+            digit: digit}, customHeaders.value)
+        log("innovaphoneController:innovaphoneDtmfCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneDtmfCall: will return error " + e);
+        return e;
+    }
+}
+export const innovaphoneDtmfIncomingCall = async (user, device, call, digit) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        //const usersInn = await pbxTableUsers()
+        //const userInn = usersInn.filter(u => u.guid == user.sip )[0]
+        //const deviceInn = userInn.devices.filter(d => d.text == device)[0];
+
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { 
+            mode: 'SendDtmfDigitsIncomingCall', 
+            guid: user.sip, 
+            device: device,
+            btn_id: '',
+            call: call,
+            digit: digit}, customHeaders.value)
+        log("innovaphoneController:innovaphoneDtmfIncomingCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneDtmfIncomingCall: will return error " + e);
+        return e;
+    }
+}
+export const innovaphoneRetrieveCall = async (btn, user) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        if(btn.button_type == 'user'){
+            const usersInn = await pbxTableUsers()
+            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+            btn.button_prt = userInn.e164
+        }
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: btn.button_prt, 
+            mode: 'RetrieveCall', 
+            guid: user.sip, 
+            device: btn.button_device,
+            btn_id: btn.id}, customHeaders.value)
+        log("innovaphoneController:innovaphoneRetrieveCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneRetrieveCall: will return error " + e);
+        return e;
+    }
+}
+export const innovaphoneRetrieveIncomingCall = async (user, device, num, call) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        //const usersInn = await pbxTableUsers()
+        //const userInn = usersInn.filter(u => u.guid == user.sip )[0]
+        //const deviceInn = userInn.devices.filter(d => d.text == device)[0];
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: num, 
+            mode: 'RetrieveIncomingCall', 
+            guid: user.sip, 
+            device: device,
+            call: call,
+            btn_id: ''}, customHeaders.value)
+        log("innovaphoneController:innovaphoneRetrieveIncomingCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneRetrieveIncomingCall: will return error " + e);
+        return e;
+    }
+}
+export const innovaphoneClearIncomingCall = async (user, device, num) => {
+    try {
+        let urlPbxTableUsers = await db.config.findOne({
+            where:{ 
+                entry: 'urlPbxTableUsers'
+            }
+        });
+        let customHeaders = await db.config.findOne({
+            where:{ 
+                entry: 'customHeaders'
+            }
+        });
+        //const usersInn = await pbxTableUsers()
+        //const userInn = usersInn.filter(u => u.guid == user.sip )[0]
+        //const deviceInn = userInn.devices.filter(d => d.text == device)[0];
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", {num: num, 
+            mode: 'ClearCall', 
+            guid: user.sip, 
+            device: device,
+            btn_id:''}, customHeaders.value)
+        log("innovaphoneController:innovaphoneClearIncomingCall: will return "+JSON.stringify(res.statusText));
+        return res.statusText;
+    }
+    catch(e){
+        log("innovaphoneController:innovaphoneClearIncomingCall: will return error " + e);
+        return e;
+    }
+}
 export const innovaphoneClearCall = async (btn, user) => {
     try {
         let urlPbxTableUsers = await db.config.findOne({
@@ -76,11 +427,11 @@ export const innovaphoneClearCall = async (btn, user) => {
             guid: user.sip, 
             device: btn.button_device,
             btn_id: btn.id}, customHeaders.value)
-        log("innovaphoneController:ClearCall: will return "+JSON.stringify(res.statusText));
+        log("innovaphoneController:innovaphoneClearCall: will return "+JSON.stringify(res.statusText));
         return res.statusText;
     }
     catch(e){
-        log("innovaphoneController:ClearCall: will return error " + e);
+        log("innovaphoneController:innovaphoneClearCall: will return error " + e);
         return e;
     }
 }
@@ -100,7 +451,7 @@ export const pbxApiPresenceSubscription = async () => {
         // Solicitação para obter dispositivos
         const pbxResponse = await sendHttpGetRequest(config.value+"/pbxApiPresences", customHeaders.value);
         if(pbxResponse.data && pbxResponse){
-            log('innovaphoneController:pbxApiPresenceSubscription: result '+JSON.stringify(pbxResponse.data))
+            log(`innovaphoneController:pbxApiPresenceSubscription: result ${pbxResponse.data.length} users`)
             const list_presences = pbxResponse.data;
             list_presences.forEach(p =>{
                 presenceSubscription(p)
@@ -115,19 +466,27 @@ export const pbxApiPresenceSubscription = async () => {
 
 export const pbxTableUsers = async () => {
     try {
-        let config = await db.config.findOne({
-            where:{ 
-                entry: 'urlPbxTableUsers'
+        if(pbxUsers.length==0){
+            let config = await db.config.findOne({
+                where:{ 
+                    entry: 'urlPbxTableUsers'
+                }
+            });
+            log('innovaphoneController:pbxTableUsers: config '+JSON.stringify(config))
+            // Solicitação para obter dispositivos
+            const pbxResponse = await sendHttpGetRequest(config.value+"/pbxTableUsers", '{}');
+            if(pbxResponse.data && pbxResponse){
+                log(`innovaphoneController:pbxTableUsers: result ${pbxResponse.data.length} users`)
+                if (Array.isArray(pbxResponse.data)) {
+                    pbxUsers = pbxResponse.data;
+                    return pbxResponse.data;
+                } else {
+                    return [];
+                }
             }
-        });
-        log('innovaphoneController:pbxTableUsers: config '+JSON.stringify(config))
-        // Solicitação para obter dispositivos
-        const pbxResponse = await sendHttpGetRequest(config.value+"/pbxTableUsers", '{}');
-        if(pbxResponse.data && pbxResponse){
-            log('innovaphoneController:pbxTableUsers: result '+JSON.stringify(pbxResponse.data))
-            return pbxResponse.data;
+        }else{
+            return pbxUsers
         }
-        
     }
     catch(e){
         return e;
@@ -258,39 +617,70 @@ export const callEvents = async (obj) =>{
             })
 
             if(user){
-                const btn = await db.button.findOne({
-                    where: {
-                        id: obj.btn_id,
+                if(obj.btn_id && obj.btn_id != ''){
+                    const btn = await db.button.findOne({
+                        where: {
+                            id: obj.btn_id,
+                        }
+                    })
+                    if(btn){
+                        send(user.guid, {api: "user", mt: "CallDisconnected", btn_id: btn.id})
+                        broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
                     }
-                })
-                if(btn){
-                    send(user.guid, {api: "user", mt: "CallDisconnected", btn_id: btn.id})
+    
+                    const call = await db.call.findOne({
+                        where: {
+                          guid: user.guid,
+                          number: btn.button_prt,
+                          status: 1
+                        },
+                        order: [
+                          ['id', 'DESC']
+                        ]
+                      });
+                      
+                    if(call){
+                        const callToUpdateResult = await db.call.update(
+                            { call_ended: getDateNow(),
+                                status: 3
+                             }, // Valores a serem atualizados
+                            { where: { id: parseInt(call.id) } } // Condição para atualização
+                        );
+                        log("innovaphoneController:callEvents:CallDisconnected:callToUpdateResult "+callToUpdateResult)
+                    }
+                }else{
+                    const call = await db.call.findOne({
+                        where: {
+                          guid: user.guid,
+                          number: obj.num,
+                          call_innovaphone: obj.call,
+                          status: 1,
+                          direction: 'inc'
+                        },
+                        order: [
+                          ['id', 'DESC']
+                        ]
+                      });
+                      
+                    if(call){
+                        const callToUpdateResult = await db.call.update(
+                            { call_ended: getDateNow(),
+                                status: 3
+                             }, // Valores a serem atualizados
+                            { where: { id: parseInt(call.id) } } // Condição para atualização
+                        );
+                        log("innovaphoneController:callEvents:IncomingCallDisconnected:callToUpdateResult "+callToUpdateResult)
+                    }
+                    const usersInn = await pbxTableUsers()
+                    const userInn = usersInn.filter(u => u.guid == obj.guid )[0]
+                    const device = userInn.devices.filter(d => d.hw == obj.device)[0];
+                    send(user.guid, {api: "user", mt: "IncomingCallDisconnected", device: obj.device, deviceText: device.text, num: obj.num, call: obj.call , btn_id: ''})
                     broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
+                    broadcast({ api: "user", mt: "NumberOnline", number: userInn.e164, note: "online", color: "online" })
                 }
 
-                const call = await db.call.findOne({
-                    where: {
-                      guid: user.guid,
-                      number: btn.button_prt,
-                      status: 1
-                    },
-                    order: [
-                      ['id', 'DESC']
-                    ]
-                  });
-                  
-                if(call){
-                    const callToUpdateResult = await db.call.update(
-                        { call_ended: getDateNow(),
-                            status: 3
-                         }, // Valores a serem atualizados
-                        { where: { id: parseInt(call.id) } } // Condição para atualização
-                    );
-                    log("innovaphoneController:callEvents::callToUpdateResult "+callToUpdateResult)
-                }
             } 
         }
-
         if(obj.mode == 'CallRinging'){
             const user = await db.user.findOne({
                 where:{
@@ -329,7 +719,49 @@ export const callEvents = async (obj) =>{
                 }
             }
         }
-
+        if(obj.mode == 'IncomingCallRinging'){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+            if(user){
+                const call = await db.call.findOne({
+                    where: {
+                      guid: user.guid,
+                      number: obj.num,
+                      call_innovaphone: obj.call,
+                      status: 1,
+                      direction: 'inc'
+                    },
+                    order: [
+                      ['id', 'DESC']
+                    ]
+                  });
+                if(!call){
+                    let result = await db.call.create({
+                        guid: user.guid,
+                        number: obj.num,
+                        call_started: getDateNow(),
+                        call_ringing: getDateNow(),
+                        call_innovaphone: obj.call,
+                        status: 1,
+                        direction: "inc",
+                        device: obj.device
+                    })
+                    log("innovaphoneController:callEvents:IncomingCallRinging: db.create.call success " + result.id);
+                }else{
+                    log("innovaphoneController:callEvents:IncomingCallRinging: call already exist on DB with id " + call.id);
+                }
+                
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == obj.guid )[0]
+                const device = userInn.devices.filter(d => d.hw == obj.device)[0];
+                send(user.guid, {api: "user", mt: "IncomingCallRing", device: obj.device, deviceText: device.text, num: obj.num, call: obj.call})
+                broadcast({ api: "user", mt: "NumberBusy", number: userInn.e164, note: "ringing", color: "ringing" })
+                broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
+            }
+        }
         if(obj.mode == 'CallConnected'){
             const user = await db.user.findOne({
                 where:{
@@ -368,7 +800,113 @@ export const callEvents = async (obj) =>{
                 }
             }
         }
-        
+        if(obj.mode == 'IncomingCallConnected'){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+            if(user){
+                const call = await db.call.findOne({
+                    where: {
+                      guid: user.guid,
+                      number: obj.num,
+                      call_innovaphone: obj.call,
+                      status: 1,
+                      direction: 'inc'
+                    },
+                    order: [
+                      ['id', 'DESC']
+                    ]
+                  });
+    
+                if(call){
+                    const callToUpdateResult = await db.call.update(
+                        { call_connected: getDateNow(),
+                            status: 1
+                         }, // Valores a serem atualizados
+                        { where: { id: parseInt(call.id) } } // Condição para atualização
+                      );
+                      log("innovaphoneController:callEvents:IncomingCallConnected:callToUpdateResult "+callToUpdateResult)
+                }
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == obj.guid )[0]
+                const device = userInn.devices.filter(d => d.hw == obj.device)[0];
+                send(user.guid, {api: "user", mt: "IncomingCallConnected", device: obj.device, deviceText: device.text, num: obj.num, call: obj.call})
+                broadcast({ api: "user", mt: "NumberBusy", number: userInn.e164, note: "busy", color: "busy" })
+                broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "busy", color: "busy" })
+            }
+        }
+        if(obj.mode == 'CallHeld'){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+            if(user){
+                send(user.guid, {api: "user", mt: "CallHeld", device: obj.device, btn_id: obj.btn_id, num: obj.num, call: obj.call})
+                //broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
+            }
+        }
+        if(obj.mode == 'UserCallHeld'){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+            if(user){
+                send(user.guid, {api: "user", mt: "UserCallHeld", device: obj.device, btn_id: obj.btn_id, num: obj.num, call: obj.call})
+                //broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
+                
+            }
+        }
+        if(obj.mode == 'UserIncomingCallHeld'){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+            if(user){
+                send(user.guid, {api: "user", mt: "UserCallHeld", device: obj.device, btn_id: obj.btn_id, num: obj.num, call: obj.call})
+                //broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
+                
+            }
+        }
+        if(obj.mode == 'CallRetrieved'){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+            if(user){
+                send(user.guid, {api: "user", mt: "CallRetrieved", device: obj.device, btn_id: obj.btn_id, num: obj.num, call: obj.call})
+                //broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
+            }
+        }
+        if(obj.mode == 'UserCallRetrieved'){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+            if(user){
+                send(user.guid, {api: "user", mt: "UserCallRetrieved", device: obj.device, btn_id: obj.btn_id, num: obj.num, call: obj.call})
+                //broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
+                
+            }
+        }
+        if(obj.mode == 'UserIncomingCallRetrieved'){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+            if(user){
+                send(user.guid, {api: "user", mt: "UserCallRetrieved", device: obj.device, btn_id: obj.btn_id, num: obj.num, call: obj.call})
+                //broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
+                
+            }
+        }
     }catch(e){
         log('innovaphoneController:callEvents: error = '+ e)
     }
@@ -395,7 +933,7 @@ export const pbxStatus = async () => {
     }
 }
 
-export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, filenameBase) => {
+export const convertRecordingPcapToWavg711u = async (pcapFilePath, outputDirectory, filenameBase) => {
     try{
         const rawFilePath = path.join(outputDirectory, filenameBase + '.raw');
         const wavFilePath = path.join(outputDirectory, filenameBase + '.wav');
@@ -465,8 +1003,228 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
     }catch(e){
         return e;
     }
-
 }
+export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, filenameBase) => {
+    try {
+        const rawFilePath = path.join(outputDirectory, filenameBase + '.raw');
+        const wavFilePath = path.join(outputDirectory, filenameBase + '.wav');
+
+        // Comando para determinar todos os SSRCs e Payloads presentes no arquivo .pcap
+        const findSSRCCommand = `tshark -r ${pcapFilePath} -q -z rtp,streams`;
+
+        exec(findSSRCCommand, (err, stdout, stderr) => {
+            if (err) {
+                log(`innovaphoneController:convertRecordingPcapToWav: Error finding SSRCs: ${stderr}`);
+                return err;
+            }
+
+            // Encontrar todos os SSRCs e Payloads no resultado
+            const ssrcMatches = [...stdout.matchAll(/(0x[0-9A-Fa-f]+)\s+(\w+)/g)];
+            if (!ssrcMatches || ssrcMatches.length === 0) {
+                log(`innovaphoneController:convertRecordingPcapToWav: No SSRCs found.`);
+                return new Error("No SSRCs found in the RTP stream.");
+            }
+
+            log(`innovaphoneController:convertRecordingPcapToWav: Found SSRCs: ${ssrcMatches.map(match => match[1]).join(', ')}`);
+
+            // Construir o comando tshark para cada SSRC e Payload
+            const tsharkCommands = ssrcMatches.map(([_, ssrc, payload]) => {
+                return `tshark -r ${pcapFilePath} -Y "rtp && rtp.ssrc==${ssrc}" -T fields -e rtp.payload`;
+            }).join(' | ');
+
+            const finalTsharkCommand = `${tsharkCommands} | xxd -r -p > ${rawFilePath}`;
+
+            exec(finalTsharkCommand, async (err, stdout, stderr)  =>  {
+                if (err) {
+                    log(`innovaphoneController:convertRecordingPcapToWav: Error running tshark: ${stderr}`);
+                    return err;
+                }
+
+                log(`innovaphoneController:convertRecordingPcapToWav: tshark extraction complete: ${rawFilePath}`);
+
+                // Mapear Payload para os parâmetros corretos no sox
+                const codecParameters = {
+                    g711U: '-t raw -r 8000 -e u-law -b 8 -c 1',
+                    g711A: '-t raw -r 8000 -e a-law -b 8 -c 1',
+                    g722: '-t raw -r 16000 -e signed -b 16 -c 1',
+                    g729: '-t raw -r 8000 -e signed -b 8 -c 1' // Exemplo para G.729, pode precisar de decodificação adicional
+                    // Adicione outros codecs aqui conforme necessário
+                };
+
+                // Use o payload do primeiro SSRC para determinar os parâmetros sox
+                const payload = ssrcMatches[0][2]; // Exemplo: g711U, g711A, etc.
+
+                if(payload == 'opus'){
+                    log(`innovaphoneController:convertRecordingPcapToWav: OPUS CODEC DETECTED`);
+                    return await convertOpusPcapToWav(pcapFilePath, outputDirectory, filenameBase)
+                }
+
+                const soxParams = codecParameters[payload] || codecParameters['g711U']; // Default para g711U
+
+                // Converter o arquivo RAW para WAV usando os parâmetros corretos
+                const soxCommand = `sox ${soxParams} ${rawFilePath} ${wavFilePath}`;
+
+                exec(soxCommand, (err, stdout, stderr) => {
+                    if (err) {
+                        log(`innovaphoneController:convertRecordingPcapToWav: Error running sox: ${stderr}`);
+                        return err;
+                    }
+
+                    log(`innovaphoneController:convertRecordingPcapToWav: sox conversion complete: ${wavFilePath}`);
+
+                    // Remover arquivos .pcap e .raw após o sucesso
+                    fs.unlink(rawFilePath, (err) => {
+                        if (err) {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Error deleting raw file: ${err}`);
+                        } else {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Deleted raw file: ${rawFilePath}`);
+                        }
+                    });
+
+                    // fs.unlink(pcapFilePath, (err) => {
+                    //     if (err) {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Error deleting pcap file: ${err}`);
+                    //     } else {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Deleted pcap file: ${pcapFilePath}`);
+                    //     }
+                    // });
+
+                    return wavFilePath;
+                });
+            });
+        });
+    } catch (e) {
+        return e;
+    }
+};
+
+export const convertRecordingPcapToWavffmpeg = async (pcapFilePath, outputDirectory, filenameBase) => {
+    try {
+        const rawFilePath = path.join(outputDirectory, filenameBase + '.raw');
+        const wavFilePath = path.join(outputDirectory, filenameBase + '.wav');
+
+        // Comando para determinar todos os SSRCs e Payloads presentes no arquivo .pcap
+        const findSSRCCommand = `tshark -r ${pcapFilePath} -q -z rtp,streams`;
+
+        exec(findSSRCCommand, (err, stdout, stderr) => {
+            if (err) {
+                log(`innovaphoneController:convertRecordingPcapToWav: Error finding SSRCs: ${stderr}`);
+                return err;
+            }
+
+            // Encontrar todos os SSRCs e Payloads no resultado
+            const ssrcMatches = [...stdout.matchAll(/(0x[0-9A-Fa-f]+)\s+(\w+)/g)];
+            if (!ssrcMatches || ssrcMatches.length === 0) {
+                log(`innovaphoneController:convertRecordingPcapToWav: No SSRCs found.`);
+                return new Error("No SSRCs found in the RTP stream.");
+            }
+
+            log(`innovaphoneController:convertRecordingPcapToWav: Found SSRCs: ${ssrcMatches.map(match => match[1]).join(', ')}`);
+
+            // Extrair todos os fluxos RTP em um único arquivo RAW usando tshark
+            const tsharkCommands = ssrcMatches.map(([_, ssrc]) => {
+                return `tshark -r ${pcapFilePath} -Y "rtp && rtp.ssrc==${ssrc}" -T fields -e rtp.payload`;
+            }).join(' | ');
+
+            const finalTsharkCommand = `${tsharkCommands} | xxd -r -p > ${rawFilePath}`;
+
+            exec(finalTsharkCommand, (err, stdout, stderr) => {
+                if (err) {
+                    log(`innovaphoneController:convertRecordingPcapToWav: Error running tshark: ${stderr}`);
+                    return err;
+                }
+
+                log(`innovaphoneController:convertRecordingPcapToWav: tshark extraction complete: ${rawFilePath}`);
+
+                // Converter o arquivo RAW para WAV usando ffmpeg
+                const ffmpegCommand = `ffmpeg -f s16le -ar 8000 -i ${rawFilePath} ${wavFilePath}`;
+
+                exec(ffmpegCommand, (err, stdout, stderr) => {
+                    if (err) {
+                        log(`innovaphoneController:convertRecordingPcapToWav: Error running ffmpeg: ${stderr}`);
+                        return err;
+                    }
+
+                    log(`innovaphoneController:convertRecordingPcapToWav: ffmpeg conversion complete: ${wavFilePath}`);
+
+                    // Remover arquivos .pcap e .raw após o sucesso
+                    fs.unlink(rawFilePath, (err) => {
+                        if (err) {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Error deleting raw file: ${err}`);
+                        } else {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Deleted raw file: ${rawFilePath}`);
+                        }
+                    });
+
+                    fs.unlink(pcapFilePath, (err) => {
+                        if (err) {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Error deleting pcap file: ${err}`);
+                        } else {
+                            log(`innovaphoneController:convertRecordingPcapToWav: Deleted pcap file: ${pcapFilePath}`);
+                        }
+                    });
+
+                    return wavFilePath;
+                });
+            });
+        });
+    } catch (e) {
+        return e;
+    }
+};
+
+
+export const convertOpusPcapToWav = async (pcapFilePath, outputDirectory, filenameBase) => {
+    try {
+        const rawFilePath = path.join(outputDirectory, filenameBase + '.raw');
+        const wavFilePath = path.join(outputDirectory, filenameBase + '.wav');
+
+        // Extrair o payload RTP Opus do arquivo .pcap
+        const tsharkCommand = `tshark -r ${pcapFilePath} -Y "rtp && rtp.payload_type==96" -T fields -e rtp.payload | xxd -r -p > ${rawFilePath}`;
+
+        exec(tsharkCommand, (err, stdout, stderr) => {
+            if (err) {
+                log(`innovaphoneController:convertOpusPcapToWav: Error running tshark: ${stderr}`);
+                return err;
+            }
+
+            log(`innovaphoneController:convertOpusPcapToWav: tshark extraction complete: ${rawFilePath}`);
+
+            // Converter o arquivo RAW para WAV usando ffmpeg
+            const ffmpegCommand = `ffmpeg -f opus -i ${rawFilePath} -acodec pcm_s16le -ar 48000 ${wavFilePath}`;
+
+            exec(ffmpegCommand, (err, stdout, stderr) => {
+                if (err) {
+                    log(`innovaphoneController:convertOpusPcapToWav: Error running ffmpeg: ${stderr}`);
+                    return err;
+                }
+
+                log(`innovaphoneController:convertOpusPcapToWav: ffmpeg conversion complete: ${wavFilePath}`);
+
+                // Remover arquivos .pcap e .raw após o sucesso
+                fs.unlink(rawFilePath, (err) => {
+                    if (err) {
+                        log(`innovaphoneController:convertOpusPcapToWav: Error deleting raw file: ${err}`);
+                    } else {
+                        log(`innovaphoneController:convertOpusPcapToWav: Deleted raw file: ${rawFilePath}`);
+                    }
+                });
+
+                fs.unlink(pcapFilePath, (err) => {
+                    if (err) {
+                        log(`innovaphoneController:convertOpusPcapToWav: Error deleting pcap file: ${err}`);
+                    } else {
+                        log(`innovaphoneController:convertOpusPcapToWav: Deleted pcap file: ${pcapFilePath}`);
+                    }
+                });
+
+                return wavFilePath;
+            });
+        });
+    } catch (e) {
+        return e;
+    }
+};
 
 export async function returnRecordLink(recordList) {
     return new Promise((resolve, reject) => {
@@ -521,10 +1279,13 @@ function mapPresenceStatus(data) {
     if (telStatuses.every(status => status === 'on-the-phone')) { //Se Todos = true
         return 'UserBusy';
     }
-    if (imStatuses.every(status => status === 'closed')) { //Se Todos = true
-        return 'UserOffline';
-    } else if (imStatuses.some(status => status === 'open') || telStatuses.some(status => status != 'closed')) { //Se Pelo menos um = true
+    // if (imStatuses.every(status => status === 'closed' && telStatuses.every(status => status != 'closed'))) { //Se Todos = true
+    //     return 'UserOffline';
+    // }
+    if (imStatuses.some(status => status === 'open') || telStatuses.some(status => status != 'closed')) { //Se Pelo menos um = true
         return 'UserOnline';
+    }else{
+        return 'UserOffline';
     }
     
     

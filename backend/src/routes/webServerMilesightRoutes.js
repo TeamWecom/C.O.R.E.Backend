@@ -51,9 +51,9 @@ router.post('/alarmTriggered', async (req, res) => {
         //return res.status(200).send(result);
 
         const body = req.body;
-        //log('webServerAPIRoutes:sensorTriggered: body ' +JSON.stringify(body))
+        log('webServerMilesightRoutes:alarmTriggered: From ' + JSON.stringify(body.deviceName))
         const model = await returnModelByEUI(body.devEUI || '');
-        log('webServerAPIRoutes:controllerReceived: model ' + model)
+        log('webServerMilesightRoutes:alarmTriggered: model ' + model)
         let decoded;
 
         // Seleciona o decodificador correto com base no modelo
@@ -83,9 +83,9 @@ router.post('/sensorTriggered', async (req, res) => {
         //const { model } = req.params;
 
         const body = req.body;
-        log('webServerAPIRoutes:sensorTriggered: body ' + JSON.stringify(body))
+        log('webServerMilesightRoutes:sensorTriggered: From ' + JSON.stringify(body.deviceName))
         const model = await returnModelByEUI(body.devEUI || '');
-        log('webServerAPIRoutes:controllerReceived: model ' + model)
+        log('webServerMilesightRoutes:sensorTriggered: model ' + model)
         let decoded;
 
         // Seleciona o decodificador correto com base no modelo
@@ -153,10 +153,10 @@ router.post('/sensorTriggered', async (req, res) => {
 router.post('/receiveImage', async (req, res) => {
     try {
         const body = req.body;
+        log('webServerMilesightRoutes:receiveImage: From ' + body.values.devName)
         if (body.topic == 'Alarm') {
-            log('webServerAPIRoutes:receiveImage: body ' + JSON.stringify(body))
+            log('webServerMilesightRoutes:receiveImage: From ' + body.values.devName)
         }
-        log("Camera mandou foto " + body.values.devName)
         const result = await receiveImage(body);
         res.status(200).send(result);
     } catch (e) {
@@ -171,10 +171,10 @@ router.post('/controllerReceived', async (req, res) => {
         const body = req.body;
         //log('webServerAPIRoutes:controllerReceived: body ' +JSON.stringify(body))
 
-
+        log('webServerMilesightRoutes:controllerReceived: From ' + JSON.stringify(body.deviceName))
         const model = await returnModelByEUI(body.devEUI || '');
 
-        log('webServerAPIRoutes:controllerReceived: model ' + model)
+        log('webServerMilesightRoutes:controllerReceived: model ' + model)
         let decoded;
 
         // Seleciona o decodificador correto com base no modelo

@@ -25,6 +25,7 @@ Button.init({
       position_x : DataTypes.STRING,
       position_y : DataTypes.STRING,
       img : DataTypes.STRING,
+      muted: DataTypes.BOOLEAN,
       createdAt : DataTypes.DATE,
       updatedAt : DataTypes.DATE
     }, {

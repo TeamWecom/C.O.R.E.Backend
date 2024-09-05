@@ -8,6 +8,7 @@ import { stringToBase64 } from '../utils/typeHelpers.js';
 import { log } from '../utils/log.js';
 import {getParametersByDeviceName} from '../utils/milesightParameters.js';
 import {sendHttpPostRequest, sendHttpGetRequest } from '../managers/httpClient.js'
+import {licenseFileWithUsage} from '../controllers/licenseController.js'
 
 let devices = [];
 
@@ -18,7 +19,6 @@ export const receiveSensor = async (obj) => {
         // Verificar ações cadastradas para esse sensor
         //
         obj.date = getDateNow();
-       log("danilo-req sensorReceived:value " + JSON.stringify(obj));
         
         try {
             resultAction = await triggerActionBySensor(obj);
@@ -62,13 +62,15 @@ export const receiveImage = async (obj) => {
     try {
         //log("milesightController:receiveImage: " + JSON.stringify(obj));
         let values = obj.values;
+        let devMac = values.devMac;
+        values.devMac = devMac.replace(/:/g, '');;
         values.date = getDateNow();
 
         //
         // Atualizar botões dos usuários sobre info recebida do sensor
         //
         let count = 0;
-
+        let result;
         const sensorsButtons = await db.button.findAll({
             where: {
                 button_prt: values.devMac,
@@ -96,10 +98,15 @@ export const receiveImage = async (obj) => {
         }
 
         // Insere na tabela de histórico dos sensores
-        let objToInsert = { deveui: values.devMac, sensor_name: iotCam.nickname, battery: values.battery, image: values.image, date: values.date}
+        if(iotCam){
+            let objToInsert = { deveui: values.devMac, sensor_name: iotCam.nickname, battery: values.battery, image: values.image, date: values.date}
 
-        const result = await db.iotDevicesHistory.create(objToInsert);
-        log("milesightController:receiveImage: event inserted into DB with id " + result.id+" and "+count+" users notified");
+            result = await db.iotDevicesHistory.create(objToInsert);
+            log("milesightController:receiveImage: event inserted into DB with id " + result.id+" and "+count+" users notified");
+        }else{
+            log("milesightController:receiveImage: event skiped Cam not in DB");
+        }
+        
         return { msg: result, usersNotified: count };
     } catch (e) {
         log("milesightController:receiveImage: Body not present! Erro " + e);
@@ -145,7 +152,7 @@ export const receiveAlarm = async (obj) => {
 
         const objAlarm = { from: obj.deveui, prt: obj.press, date: getDateNow(), btn_id: '' }
         const result = await db.activeAlarms.create(objAlarm)
-        log('TriggerAlarm: activeAlarm create result ' + result)
+        log('milesightController:receiveAlarm: ActiveAlarm create result ' + result)
 
         
 
@@ -183,7 +190,6 @@ export const receiveController = async (obj) =>{
                 }
             });
         }
-
 
         const result = await db.iotDevicesHistory.create(obj);
         log("milesightController:receiveController: event inserted into DB with id " + result.id+" and "+count+" users notified");
@@ -329,4 +335,21 @@ export const returnModelByEUI = async(devEUI) =>{
         }
     }
     return null;
+}
+
+export const addGateway = async (obj) => {
+    let objResult = { api: "admin"}
+    const license = await licenseFileWithUsage();
+    if (license.gateways.used >= license.gateways.total){
+        log("milesightController:addGateway: Limite de gateways atingido, contratar nova licença");
+        objResult.mt = "AddGatewayError"
+        objResult.result = 'noMoreLicenses'
+        return objResult;
+    }
+
+    const insertResult = await db.gateway.create(obj)
+    objResult.mt = "AddGatewaySuccess"
+    objResult.result = insertResult;
+    
+    return objResult;
 }

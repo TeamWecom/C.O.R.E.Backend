@@ -26,11 +26,15 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { pbxApiPresenceSubscription } from './controllers/innovaphoneController.js';
 import db from './managers/databaseSequelize.js'
-import {loadOrInstallLicenseKey, decryptedLicenseFile} from './controllers/licenseController.js'
-
+import {loadOrInstallLicenseKey, decryptedLicenseFile, licenseFileWithUsage} from './controllers/licenseController.js'
+import {log } from './utils/log.js'
 
 
 import bodyParserXml from 'body-parser-xml';
+
+import aedes from 'aedes';
+import net from 'net';
+import mqttRoutes from './routes/mqttRoutes.js';
 
 bodyParserXml(bodyParser);
 
@@ -42,15 +46,29 @@ const env = process.env.NODE_ENV || 'development';
 const config = configFile[env];
 
 
-const PORT_HTTPS = 444; // Porta padrão para HTTPS
-const PORT_HTTP = process.env.PORT_HTTP || 8000; // Porta padrão para HTTP
+const PORT_HTTPS = process.env.PORT_HTTPS ||444; // Porta padrão para HTTPS
+const PORT_HTTP = process.env.PORT_HTTP || 444; // Porta padrão para HTTP
 const PORT_WS = process.env.PORT_WS || 10000; // Porta padrão para WS
+const PORT_MQTT = process.env.PORT_MQTT || 1833; // Porta padrão para MQTT
 
 // Permitindo todas as origens
 app.use(cors());
 app.use(bodyParser.json());
-await db.sequelize.authenticate(); // Se você estiver usando Sequelize
-console.log('core-service:Conexão com o banco de dados estabelecida com sucesso.');
+
+async function connectWithRetry() {
+    while (true) { // Loop infinito, vai tentar até que a conexão seja bem-sucedida
+        try {
+            await db.sequelize.authenticate();
+            log('Conexão com o banco de dados estabelecida com sucesso!');
+            break; // Sai do loop se a conexão for bem-sucedida
+        } catch (error) {
+            log(`Erro ao tentar conectar ao banco de dados: ${error.message}`);
+            log('Tentando novamente em 15 segundos...');
+            setTimeout(connectWithRetry, 15000);
+        }
+    }
+}
+await connectWithRetry()
 
 await loadOrInstallLicenseKey()
 const decryptedLicense = await decryptedLicenseFile()
@@ -90,9 +108,9 @@ if (enableHttps) {
     wsServer.on('connection', handleConnection);
 
     wsHttpServer.listen(PORT_WS, async ()  => {
-        console.log(`core-service:Secure WebSocketServer running on port ${PORT_WS}`);
+        log(`core-service:Secure WebSocketServer running on port ${PORT_WS}`);
         if(decryptedLicense && decryptedLicense.pbx == true){
-            console.log(`core-service:decryptedLicenseFile.pbx ${decryptedLicense.pbx}`);
+            log(`core-service:decryptedLicenseFile.pbx ${decryptedLicense.pbx}`);
             checkPbxTypeForPresenceSubscription();
         }
     });
@@ -116,6 +134,10 @@ if (enableHttps) {
 
     wsHttpServer.listen(PORT_WS, () => {
         console.log(`core-service:WebSocketServer running on port ${PORT_WS}`);
+        if(decryptedLicense && decryptedLicense.pbx == true){
+            log(`core-service:decryptedLicenseFile.pbx ${decryptedLicense.pbx}`);
+            checkPbxTypeForPresenceSubscription();
+        }
     });
 
     const httpServer = http.createServer(app);
@@ -129,19 +151,25 @@ app.use('/ui', UIRouter);
 
 // Configuração do WebServer
 app.use(express.json());
-app.use('/api/innovaphone', InnovaphoneRouter);
-app.use('/api/milesight', MilesightRouter);
+
+if(decryptedLicense && decryptedLicense.pbx == true){
+    log(`core-service:decryptedLicenseFile.pbx ${decryptedLicense.pbx}`);
+    app.use('/api/innovaphone', InnovaphoneRouter);
+    // Configurar body-parser para processar XML
+    app.use(bodyParser.xml({
+        limit: '1MB',   // Limite do tamanho do XML
+        xmlParseOptions: {
+            explicitArray: false, // Para não converter filhos de nós com o mesmo nome em arrays
+        }
+    }));
+}
+if(decryptedLicense && decryptedLicense.gateways != 0){
+    log(`core-service:decryptedLicenseFile.gateways ${decryptedLicense.gateways}`);
+    app.use('/api/milesight', MilesightRouter);
+}
+
 app.use('/api', APIRouter);
 
-
-
-// Configurar body-parser para processar XML
-app.use(bodyParser.xml({
-    limit: '1MB',   // Limite do tamanho do XML
-    xmlParseOptions: {
-        explicitArray: false, // Para não converter filhos de nós com o mesmo nome em arrays
-    }
-}));
 
 
 // Função assíncrona para buscar a configuração e executar a função correspondente
@@ -163,4 +191,19 @@ async function checkPbxTypeForPresenceSubscription() {
     }
 }
 
+//#region MQTT
+// Criar a instância do broker MQTT
+const broker = aedes();
 
+// Criar o servidor TCP para escutar conexões MQTT
+const server = net.createServer(broker.handle);
+
+// Iniciar o servidor
+server.listen(PORT_MQTT, () => {
+    console.log(`core-service: Servidor MQTT rodando na porta ${PORT_MQTT}`);
+});
+
+// Configura as rotas MQTT
+mqttRoutes(broker);
+
+//#endregion

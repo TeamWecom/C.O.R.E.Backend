@@ -9,7 +9,21 @@ import process from 'process';
 import configFile from '../config/config.js';
 import { config as dotenvConfig } from 'dotenv';
 import { QueryTypes, Op } from 'sequelize';
-import {innovaphoneMakeCall, innovaphoneClearCall} from '../controllers/innovaphoneController.js';
+import {innovaphoneMakeCall, 
+    innovaphoneHeldCall, 
+    innovaphoneRetrieveCall, 
+    innovaphoneClearCall, 
+    innovaphoneRedirectCall, 
+    innovaphoneDtmfCall,
+    innovaphonePassiveRCCMonitor,
+    innovaphonePassiveRCCMonitorEnd,
+    innovaphoneConnectCall,
+    innovaphoneClearIncomingCall,
+    innovaphoneHeldIncomingCall,
+    innovaphoneRetrieveIncomingCall,
+    innovaphoneRedirectIncomingCall,
+    innovaphoneDtmfIncomingCall
+} from '../controllers/innovaphoneController.js';
 dotenvConfig();
 
 import { fileURLToPath } from 'url';
@@ -23,9 +37,193 @@ const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
 const config = configFile[env];
 
+export const rccMonitor = async (guid) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
 
+        
+        log("buttonController:rccMonitor: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphonePassiveRCCMonitor(user)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+            // if(pbxConfig.customHeaders){
+            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
+            // }
+            
+            // var post = await sendHttpPostRequest(pbxType.vl, {
+            //     restPeerIP: pbxConfig.restPeerIP,
+            //     cmd: "CreateCall",
+            //     username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
+            //     password: pbxConfig.passwordEpygi, //Senha do ramal virtual
+            //     displayName: "REST 3PCC 120",
+            //     restCallID: result.id, //"7325840796693965112"
+            //     ownerID: "REST Req2Call",
+            //     sipUsername: "EmergencyS", //Nome mostrado durante o ring
+            //     callSource: device,
+            //     callDestination: prt
+            //     },pbxType.vl)
+            // log("danilo-req MakeCall: httpService.sendHttpPostRequest success "+post);
+            // return post
+        }
+    }catch(e){
+        log("danilo-req rccMonitor: error " + e)
+        return e
+    }  
+}
+export const rccMonitorEnd = async (guid) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
 
-export const MakeCall = async (guid, btn_id) => {
+        
+        log("buttonController:rccMonitorEnd: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphonePassiveRCCMonitorEnd(user)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+            // if(pbxConfig.customHeaders){
+            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
+            // }
+            
+            // var post = await sendHttpPostRequest(pbxType.vl, {
+            //     restPeerIP: pbxConfig.restPeerIP,
+            //     cmd: "CreateCall",
+            //     username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
+            //     password: pbxConfig.passwordEpygi, //Senha do ramal virtual
+            //     displayName: "REST 3PCC 120",
+            //     restCallID: result.id, //"7325840796693965112"
+            //     ownerID: "REST Req2Call",
+            //     sipUsername: "EmergencyS", //Nome mostrado durante o ring
+            //     callSource: device,
+            //     callDestination: prt
+            //     },pbxType.vl)
+            // log("danilo-req MakeCall: httpService.sendHttpPostRequest success "+post);
+            // return post
+        }
+    }catch(e){
+        log("danilo-req rccMonitorEnd: error " + e)
+        return e
+    }  
+}
+
+export const connectCall = async (guid, device, call) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+
+        
+        log("buttonController:connectCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneConnectCall(user, device, call)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+            // if(pbxConfig.customHeaders){
+            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
+            // }
+            
+            // var post = await sendHttpPostRequest(pbxType.vl, {
+            //     restPeerIP: pbxConfig.restPeerIP,
+            //     cmd: "CreateCall",
+            //     username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
+            //     password: pbxConfig.passwordEpygi, //Senha do ramal virtual
+            //     displayName: "REST 3PCC 120",
+            //     restCallID: result.id, //"7325840796693965112"
+            //     ownerID: "REST Req2Call",
+            //     sipUsername: "EmergencyS", //Nome mostrado durante o ring
+            //     callSource: device,
+            //     callDestination: prt
+            //     },pbxType.vl)
+            // log("danilo-req MakeCall: httpService.sendHttpPostRequest success "+post);
+            // return post
+        }
+    }catch(e){
+        log("danilo-req connectCall: error " + e)
+        return e
+    }  
+}
+export const clearIncomingCall = async (guid, device, num) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+
+        
+        log("buttonController:connectCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneClearIncomingCall(user, device, num)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+            // if(pbxConfig.customHeaders){
+            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
+            // }
+            
+            // var post = await sendHttpPostRequest(pbxType.vl, {
+            //     restPeerIP: pbxConfig.restPeerIP,
+            //     cmd: "CreateCall",
+            //     username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
+            //     password: pbxConfig.passwordEpygi, //Senha do ramal virtual
+            //     displayName: "REST 3PCC 120",
+            //     restCallID: result.id, //"7325840796693965112"
+            //     ownerID: "REST Req2Call",
+            //     sipUsername: "EmergencyS", //Nome mostrado durante o ring
+            //     callSource: device,
+            //     callDestination: prt
+            //     },pbxType.vl)
+            // log("danilo-req MakeCall: httpService.sendHttpPostRequest success "+post);
+            // return post
+        }
+    }catch(e){
+        log("danilo-req connectCall: error " + e)
+        return e
+    }  
+}
+
+export const makeCall = async (guid, btn_id) => {
     try{
         let pbxType = await db.config.findOne({
             where:{
@@ -50,7 +248,9 @@ export const MakeCall = async (guid, btn_id) => {
             number: btn.button_prt,
             call_started: getDateNow(),
             status: 1,
-            direction: "out"
+            direction: "out",
+            btn_id: btn.id,
+            device: btn.button_device
         })
         log("buttonController:MakeCall: db.create.call success " + result.id);
         log("buttonController:MakeCall: pbxType " + pbxType.value);
@@ -84,7 +284,286 @@ export const MakeCall = async (guid, btn_id) => {
     }  
 }
 
-export const ClearCall = async (guid, btn_id) => {
+export const heldCall = async (guid, btn_id) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        //const callid = random.generateRandomBigInt(19);
+        const btn = await db.button.findOne({
+            where: {
+                id: btn_id
+            }
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+
+        let call = await db.call.findOne({
+            where: {
+              guid: guid,
+              number: btn.button_prt,
+              status: 1
+            },
+            order: [
+              ['id', 'DESC']
+            ]
+          });
+
+        log("buttonController:HeldCall: call.id " + call.id);
+        log("buttonController:HeldCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneHeldCall(btn, user)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+        }
+    }catch(e){
+        log("danilo-req HeldCall: error " + e)
+        return e
+    }  
+}
+export const heldIncomingCall = async (guid, device, num, call) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        //const callid = random.generateRandomBigInt(19);
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+
+        log("buttonController:HeldCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneHeldIncomingCall(user, device, num, call)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+        }
+    }catch(e){
+        log("danilo-req HeldCall: error " + e)
+        return e
+    }  
+}
+export const retrieveCall = async (guid, btn_id) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        //const callid = random.generateRandomBigInt(19);
+        const btn = await db.button.findOne({
+            where: {
+                id: btn_id
+            }
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+
+        let call = await db.call.findOne({
+            where: {
+              guid: guid,
+              number: btn.button_prt,
+              status: 1
+            },
+            order: [
+              ['id', 'DESC']
+            ]
+          });
+
+        log("buttonController:RetrieveCall: call.id " + call.id);
+        log("buttonController:RetrieveCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneRetrieveCall(btn, user)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+        }
+    }catch(e){
+        log("danilo-req HeldCall: error " + e)
+        return e
+    }  
+}
+export const retrieveIncomingCall = async (guid, device, num, call) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        //const callid = random.generateRandomBigInt(19);
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+        log("buttonController:retrieveIncomingCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneRetrieveIncomingCall(user, device, num, call)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+        }
+    }catch(e){
+        log("danilo-req HeldCall: error " + e)
+        return e
+    }  
+}
+export const redirectCall = async (guid, btn_id, destination) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        //const callid = random.generateRandomBigInt(19);
+        const btn = await db.button.findOne({
+            where: {
+                id: btn_id
+            }
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+
+        let call = await db.call.findOne({
+            where: {
+              guid: guid,
+              number: btn.button_prt,
+              status: 1
+            },
+            order: [
+              ['id', 'DESC']
+            ]
+          });
+
+        log("buttonController:redirectCall: call.id " + call.id);
+        log("buttonController:redirectCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneRedirectCall(btn, user, destination)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+        }
+    }catch(e){
+        log("danilo-req redirectCall: error " + e)
+        return e
+    }  
+}
+export const redirectIncomingCall = async (guid, device, call, destination) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+        log("buttonController:redirectIncomingCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneRedirectIncomingCall(user, device, call, destination)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+        }
+    }catch(e){
+        log("danilo-req redirectIncomingCall: error " + e)
+        return e
+    }  
+}
+export const dtmfCall = async (guid, btn_id, digit) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        //const callid = random.generateRandomBigInt(19);
+        const btn = await db.button.findOne({
+            where: {
+                id: btn_id
+            }
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+
+        let call = await db.call.findOne({
+            where: {
+              guid: guid,
+              number: btn.button_prt,
+              status: 1
+            },
+            order: [
+              ['id', 'DESC']
+            ]
+          });
+
+        log("buttonController:dtmfCall: call.id " + call.id);
+        log("buttonController:dtmfCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneDtmfCall(btn, user, digit)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+        }
+    }catch(e){
+        log("danilo-req dtmfCall: error " + e)
+        return e
+    }  
+}
+export const dtmfIncomingCall = async (guid, device, call, digit) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+        log("buttonController:dtmfCall: pbxType " + pbxType.value);
+        if(pbxType.value == 'INNOVAPHONE'){
+            
+            return await innovaphoneDtmfIncomingCall(user, device, call, digit)
+        }
+        if(pbxType.valuel == 'EPYGI'){                                    
+        }
+    }catch(e){
+        log("danilo-req dtmfCall: error " + e)
+        return e
+    }  
+}
+export const clearCall = async (guid, btn_id) => {
     try{
         let pbxType = await db.config.findOne({
             where:{

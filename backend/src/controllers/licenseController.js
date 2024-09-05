@@ -3,6 +3,8 @@ import db from '../managers/databaseSequelize.js';
 import { log } from '../utils/log.js';
 import crypto from 'crypto';
 import { readUInt16LE } from '../utils/typeHelpers.js';
+import { where } from 'sequelize';
+import {getConnections} from '../managers/webSocketManager.js'
 
 
 export const loadOrInstallLicenseKey = async () =>{
@@ -68,6 +70,46 @@ export const updateLicenseFile = async (fileHash) => {
         log('licenseController:updateLicenseFile: error '+e)
         return e;
     }
+}
+export const licenseFileWithUsage = async() =>{
+    const lic = await decryptedLicenseFile();
+
+
+    if (lic['user'] !== undefined) {
+        const usersCreated = await db.user.findAll({
+            where:{
+                type: 'user'
+        }})
+        lic['user'] = { total: lic['user'], used: usersCreated.length };
+    }
+    if (lic['admin'] !== undefined) {
+        const adminsCreated = await db.user.findAll({
+            where:{
+                type: 'admin'
+        }})
+        lic['admin'] = { total: lic['admin'], used: adminsCreated.length };
+    }
+    if (lic['gateway'] !== undefined) {
+        const gatewaysCreated = await db.gateway.findAll()
+        lic['gateway'] = { total: lic['gateway'], used: gatewaysCreated.length };
+    }
+    if (lic['online'] !== undefined) {
+        const usersOnline = await getConnections()
+        lic['online'] = { total: lic['online'], used: usersOnline.length };
+    }
+    if (lic['pbx'] !== undefined) {
+        const pbxCreated = await db.config.findAll({
+            where:{
+                entry: "urlPbxTableUsers"
+            }
+        })
+        lic['pbx'] = { total: lic['pbx'], used: pbxCreated.length >=1 ? true : false };
+    }
+    if (lic['record'] !== undefined) {
+        lic['record'] = { total: lic['record'], used: lic['record'] };
+    }
+    return lic;
+    
 }
 export const decryptedLicenseFile = async() => {
     try{
