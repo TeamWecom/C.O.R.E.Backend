@@ -29,6 +29,7 @@ dotenvConfig();
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { combineTableNames } from 'sequelize/lib/utils';
+import { getDevices } from './milesightController.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -901,7 +902,9 @@ export const getActiveAlarmHistory = async (guid) => {
         INNER JOIN 
           list_active_alarms
         ON 
-          list_buttons.button_prt = list_active_alarms.prt 
+          list_buttons.button_prt = list_active_alarms.prt
+          OR
+          list_buttons.sensor_type = list_active_alarms.prt 
           AND 
           list_buttons.button_user = '${guid}'
         `;
@@ -911,7 +914,12 @@ export const getActiveAlarmHistory = async (guid) => {
 
     log("buttonController::getActiveAlarmHistory result= " + result.length + " buttons with alarm active for user "+guid);
     result.forEach(async function(b){
-        send(guid, { api: "user", mt: "AlarmReceived", alarm: b.button_prt, btn_id: b.id, src: b.from, date: b.date })
+        if(b.button_type=='sensor'){
+            send(guid, { api: "user", mt: "AlarmReceived", alarm: b.sensor_type, btn_id: b.id, src: b.from, date: b.date })
+    
+        }else{
+            send(guid, { api: "user", mt: "AlarmReceived", alarm: b.button_prt, btn_id: b.id, src: b.from, date: b.date })
+        }
     })
 }
 

@@ -2,16 +2,19 @@
 import express from 'express';
 import { log } from '../utils/log.js';
 import {
-    createUser, signInUser, verifyToken, updatePassword,
+    createUser, signInUser, updatePassword,
     updateUser, resetPassword, listUsers, deleteUser
 } from '../controllers/authController.js';
 import multer from 'multer';
-import { validateToken } from '../utils/validadeToken.js';
+import { renewToken, validateToken } from '../utils/validadeToken.js';
 import path from 'path';
 import url from 'url';
 import { uploadFile } from '../controllers/filesController.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { generatePDF, generateExcel } from '../utils/generateReportFile.js';
+import fs from 'fs';
+import { backupDatabase } from '../utils/dbMaintenance.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -62,7 +65,7 @@ router.post('/create', async (req, res) => {
 // Rota para verificar token
 router.post('/verifyToken', async (req, res) => {
     try {
-        const result = await verifyToken(req.body.token);
+        const result = await validateToken(req.body.token);
         res.status(200).send(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -129,5 +132,98 @@ router.post('/resetPassword', async (req, res) => {
     }
 });
 
+// Rota para renovar o token
+router.get('/renewToken', async (req, res) => {
+    try {
+        const newToken = await renewToken(req.headers['x-auth']);
+        res.status(200).send({accessToken: newToken});
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
+router.post('/generatePdf', async (req, res) => {
+    try{
+        const body = req.body;
+        const {staticDir, pdfName,filePath} = await generatePDF(body)
+        //res.status(200).send(pdf);
+        log('webServerAPIRoutes:/generatePdf: staticDir: '+staticDir);
+        log('webServerAPIRoutes:/generatePdf: name: '+pdfName);
+        log('webServerAPIRoutes:/generatePdf: filePath: '+filePath);
+        // Forçar o download do PDF
+        res.download(filePath, pdfName, (err) => {
+            if (err) {
+            log('webServerAPIRoutes:/generatePdf: Erro ao fazer download do PDF: '+err);
+            res.status(500).send('Erro ao fazer download do PDF');
+            }else{
+                log('webServerAPIRoutes:/generatePdf: download do PDF:');
+            }
+    
+            // Após o download, você pode excluir o arquivo temporário
+            fs.unlink(pdfPath, (err) => {
+            if (err) {
+                log('webServerAPIRoutes:/generatePdf: Erro ao remover arquivo temporário:', err);
+            }
+            });
+        });
+
+    } catch (e) {
+        res.status(500).json({error: e.message});
+    }
+})
+router.post('/generateExcel', async (req, res) => {
+    try {
+        const body = req.body;
+        const { staticDir, fileName, filePath } = await generateExcel(body.data, body.name);
+        log('webServerAPIRoutes:/generateExcel: staticDir: '+staticDir);
+        log('webServerAPIRoutes:/generateExcel: name: '+fileName);
+        log('webServerAPIRoutes:/generateExcel: filePath: '+filePath);
+        // Forçar o download do arquivo Excel
+        res.download(filePath, fileName, (err) => {
+            if (err) {
+                log('webServerAPIRoutes:/generateExcel: Erro ao baixar o arquivo Excel:'+ err);
+                res.status(500).send('Erro ao fazer download do arquivo Excel');
+            } else {
+                log('webServerAPIRoutes:/generateExcel: Download do arquivo Excel realizado com sucesso.');
+                // Após o download, você pode excluir o arquivo temporário se necessário
+                fs.unlink(filePath, (err) => {
+                    if (err) {
+                        log('webServerAPIRoutes:/generateExcel: Erro ao remover arquivo temporário:', err);
+                    }
+                    });
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/backupDataBase', async (req, res) => {
+    try{
+        const {backupFile, fileName, backupDir} = await backupDatabase();
+
+        log('webServerAPIRoutes:/backupDataBase: backupDir: '+backupDir);
+        log('webServerAPIRoutes:/backupDataBase: name: '+fileName);
+        log('webServerAPIRoutes:/backupDataBase: backupFile: '+backupFile);
+        // Forçar o download do arquivo
+        res.download(backupFile, fileName, (err) => {
+            if (err) {
+            log('webServerAPIRoutes:/backupDataBase: Erro ao fazer download do Arquivo: '+err);
+            res.status(500).send('Erro ao fazer download do Arquivo');
+            }else{
+                log('webServerAPIRoutes:/backupDataBase: download do Arquivo OK!');
+            }
+    
+            // Após o download, você pode excluir o arquivo temporário
+            fs.unlink(backupFile, (err) => {
+            if (err) {
+                log('webServerAPIRoutes:/backupDataBase: Erro ao remover arquivo temporário:', err);
+            }
+            });
+        });
+
+    } catch (e) {
+        res.status(500).json({error: e.message});
+    }
+})
 export default router;

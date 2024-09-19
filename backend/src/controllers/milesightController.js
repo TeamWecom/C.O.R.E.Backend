@@ -60,7 +60,7 @@ export const receiveSensor = async (obj) => {
 
 export const receiveImage = async (obj) => {
     try {
-        //log("milesightController:receiveImage: " + JSON.stringify(obj));
+        log("milesightController:receiveImage: " + JSON.stringify(obj));
         let values = obj.values;
         let devMac = values.devMac;
         values.devMac = devMac.replace(/:/g, '');;
@@ -340,7 +340,7 @@ export const returnModelByEUI = async(devEUI) =>{
 export const addGateway = async (obj) => {
     let objResult = { api: "admin"}
     const license = await licenseFileWithUsage();
-    if (license.gateways.used >= license.gateways.total){
+    if (license.gateway && license.gateway.used >= license.gateway.total){
         log("milesightController:addGateway: Limite de gateways atingido, contratar nova licença");
         objResult.mt = "AddGatewayError"
         objResult.result = 'noMoreLicenses'

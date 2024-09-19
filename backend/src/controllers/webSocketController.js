@@ -56,12 +56,13 @@ export const handleConnection = async (conn, req) => {
             }
 
             log('webSocketController:handleConnection Token JWT válido:', user.name);
-
-            const license = await licenseFileWithUsage();
-            if (license.online.used >= license.online.total){
-                log("webSocketController:handleConnection: Limite de usuáros online atingido, contratar nova licença");
-                conn.close(1010);
-                return;
+            if(user.email != 'admin@wecom.com.br'){
+                const license = await licenseFileWithUsage();
+                if (license.online.used >= license.online.total){
+                    log("webSocketController:handleConnection: Limite de usuáros online atingido, contratar nova licença");
+                    conn.close(1010);
+                    return;
+                }
             }
             //const session = generateGUID();
             conn.guid = user.guid;
@@ -497,7 +498,7 @@ export const handleConnection = async (conn, req) => {
                         var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "stop", details: btn.button_name, prt: obj.prt }
                         log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                         const resultInsert = await db.activity.create(msg)
-                        conn.send(JSON.stringify({ api: "user", mt: "TriggerStopAlarmResult", result: TriggerStopAlarmResult, src: resultInsert }));
+                        conn.send(JSON.stringify({ api: "user", mt: "TriggerStopAlarmResult", result: TriggerStopAlarmResult, btn_id: obj.btn_id, src: resultInsert }));
                     }
                     //#endregion
                     //#region SENSORS

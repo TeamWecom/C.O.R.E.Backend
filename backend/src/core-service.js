@@ -163,8 +163,8 @@ if(decryptedLicense && decryptedLicense.pbx == true){
         }
     }));
 }
-if(decryptedLicense && decryptedLicense.gateways != 0){
-    log(`core-service:decryptedLicenseFile.gateways ${decryptedLicense.gateways}`);
+if(decryptedLicense && decryptedLicense.gateway != 0){
+    log(`core-service:decryptedLicenseFile.gateways ${decryptedLicense.gateway}`);
     app.use('/api/milesight', MilesightRouter);
 }
 

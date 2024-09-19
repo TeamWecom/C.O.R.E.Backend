@@ -5,30 +5,35 @@ import db from '../managers/databaseSequelize.js';
 let connectionsUser = []; // Mantém uma lista de clientes conectados
 
 export const addConnection = async (conn) => {
-    connectionsUser.push(conn);
-    log("webSocketManager:addConnection connectionsUser: added conn "+conn.dn);
-    
-    const connCount = connectionsUser.filter(client => client.guid === conn.guid);
-    if(connCount.length==1){
-        //notifia a todos sobre o noo login
-        broadcast({ mt: "CoreUserOnline", guid: conn.guid }); //Substituído pelo innovaphoneController
-        // Insert into DB the event of new login
-        const today = getDateNow();
-        const msg = { guid: conn.guid, name: conn.dn, date: today, status: "Login", details: "APP" };
-        await db.availability.create(msg);
+    if(conn.guid){
+        connectionsUser.push(conn);
+        log("webSocketManager:addConnection connectionsUser: added conn "+conn.dn);
+        
+        const connCount = connectionsUser.filter(client => client.guid === conn.guid);
+        if(connCount.length==1){
+            //notifia a todos sobre o noo login
+            broadcast({ mt: "CoreUserOnline", guid: conn.guid }); //Substituído pelo innovaphoneController
+            // Insert into DB the event of new login
+            const today = getDateNow();
+            const msg = { guid: conn.guid, name: conn.dn, date: today, status: "Login", details: "APP" };
+            const insertResult = await db.availability.create(msg);
+            log(insertResult)
+        }
+        conn.send(JSON.stringify({ mt: "UserSessionResult", guid: conn.guid }));
     }
-    conn.send(JSON.stringify({ mt: "UserSessionResult", guid: conn.guid }));
-    
 };
 
 export const removeConnection = async (conn) => {
     connectionsUser = connectionsUser.filter(client => client !== conn);
-    log("webSocketManager:removeConnection connectionsUser: removed conn "+conn.dn);
-    const connCount = connectionsUser.filter(client => client.guid === conn.guid);
-    if(connCount.length==0 && conn.guid){
-        //notifia a todos sobre o noo login
-        broadcast({ mt: "CoreUserOffline", guid: conn.guid });
+    if(conn.guid){
+        log("webSocketManager:removeConnection connectionsUser: removed conn "+conn.dn);
+        const connCount = connectionsUser.filter(client => client.guid === conn.guid);
+        if(connCount.length==0 && conn.guid){
+            //notifia a todos sobre o noo login
+            broadcast({ mt: "CoreUserOffline", guid: conn.guid });
+        }
     }
+    
 
     // Insert into DB the event
     const today = getDateNow();

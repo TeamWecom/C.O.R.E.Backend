@@ -80,22 +80,22 @@ export const licenseFileWithUsage = async() =>{
             where:{
                 type: 'user'
         }})
-        lic['user'] = { total: lic['user'], used: usersCreated.length };
+        lic['user'] = { total: lic['user'], used: usersCreated.length || 0 };
     }
     if (lic['admin'] !== undefined) {
         const adminsCreated = await db.user.findAll({
             where:{
                 type: 'admin'
         }})
-        lic['admin'] = { total: lic['admin'], used: adminsCreated.length };
+        lic['admin'] = { total: lic['admin'], used: adminsCreated.length || 0 };
     }
     if (lic['gateway'] !== undefined) {
         const gatewaysCreated = await db.gateway.findAll()
-        lic['gateway'] = { total: lic['gateway'], used: gatewaysCreated.length };
+        lic['gateway'] = { total: lic['gateway'], used: gatewaysCreated.length || 0 };
     }
     if (lic['online'] !== undefined) {
         const usersOnline = await getConnections()
-        lic['online'] = { total: lic['online'], used: usersOnline.length };
+        lic['online'] = { total: lic['online'], used: usersOnline.length || 0 };
     }
     if (lic['pbx'] !== undefined) {
         const pbxCreated = await db.config.findAll({

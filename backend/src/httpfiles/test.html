@@ -20,9 +20,9 @@
       let wsUrl = '';
       // Constrói dinamicamente a URL WebSocket
       if(window.location.protocol == 'http:'){
-          wsUrl = 'ws://' + currentUrl + ':10000/ws?token=' + token;
+          wsUrl = 'ws://' + currentUrl + ':10101/ws?token=' + token;
       }else{
-          wsUrl = 'wss://' + currentUrl + ':10000/ws?token=' + token;
+          wsUrl = 'wss://' + currentUrl + ':10101/ws?token=' + token;
       }
       let ws;
       let timer;

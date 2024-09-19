@@ -21,6 +21,7 @@ import { decodePayloadUC50X } from '../utils/milesightPayloadDecoders/UC50xDecod
 import { decodePayloadWS202 } from '../utils/milesightPayloadDecoders/WS202Decoder.js';
 import { decodePayloadAM307 } from '../utils/milesightPayloadDecoders/AM307Decoder.js';
 import { decodePayloadWS156 } from '../utils/milesightPayloadDecoders/WS156Decoder.js';
+import { decodePayloadVS121 } from '../utils/milesightPayloadDecoders/VS121Decoder.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -132,9 +133,13 @@ router.post('/sensorTriggered', async (req, res) => {
             case 'wts506':
                 decoded = await decodePayloadWTS506(body.data)
                 break;
-
+            case 'vs121':
+                decoded = await decodePayloadVS121(body.data);
+                log('webServerAPIRoutes:sensorTriggered: VS121 decoded ' +JSON.stringify(decoded))
+                break;
             // Adicione outros cases conforme necessário
             default:
+                log('webServerAPIRoutes:sensorTriggered: UNKNOWN body ' +JSON.stringify(body))
                 return res.status(400).send({ error: 'Modelo desconhecido' });
         }
 
@@ -169,7 +174,6 @@ router.post('/controllerReceived', async (req, res) => {
     try {
         //const { model } = req.params;
         const body = req.body;
-        //log('webServerAPIRoutes:controllerReceived: body ' +JSON.stringify(body))
 
         log('webServerMilesightRoutes:controllerReceived: From ' + JSON.stringify(body.deviceName))
         const model = await returnModelByEUI(body.devEUI || '');
@@ -187,6 +191,7 @@ router.post('/controllerReceived', async (req, res) => {
                 break;
             // Adicione outros cases conforme necessário
             default:
+                log('webServerAPIRoutes:controllerReceived: UNKNOWN body ' +JSON.stringify(body))
                 return res.status(400).send({ error: 'Modelo desconhecido' });
         }
 
