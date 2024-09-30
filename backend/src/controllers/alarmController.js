@@ -156,7 +156,7 @@ export const getActiveAlarmHistory = async (guid) => {
 
     log("alarmController::getActiveAlarmHistory result= " + result.length + " buttons with alarm active for user "+guid);
     result.forEach(async function(b){
-        send(guid, { api: "user", mt: "AlarmReceived", alarm: b.button_prt, btn_id: b.id, src: b.from, date: b.date })
+        send(guid, { api: "user", mt: "AlarmReceived", btn_id: b.id})
     })
 }
 

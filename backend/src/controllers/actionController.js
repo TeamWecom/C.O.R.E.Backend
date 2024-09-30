@@ -1,10 +1,10 @@
-import { send } from '../managers/webSocketManager.js';
+import { broadcast, send } from '../managers/webSocketManager.js';
 import { getDateNow } from '../utils/getDateNow.js';
 import {sendHttpPostRequest} from '../managers/httpClient.js';
 //const ConfigModel = require('../models/configModel')
 import db from '../managers/databaseSequelize.js';
 import { log } from '../utils/log.js';
-import { Op } from 'sequelize';
+import { Op, where } from 'sequelize';
 import fs from 'fs';
 import path from 'path';
 import process from 'process';
@@ -101,14 +101,39 @@ async function resolveAction(from, actions){
     try{
         actions.forEach(async function (ac) {
             log("actionController:resolveAction:ac " + JSON.stringify(ac.action_name));
+            let insertActivityResult;
+            
             switch (ac.action_exec_type) {
                 case "alarm":
-                    log("actionController:resolveAction:alarm");
-                    send(ac.action_user, { api: "user", mt: "AlarmReceived", alarm: ac.action_exec_prt, src: from })
+                    log("actionController:resolveAction: action type alarm");
+                    // Ação tratada... Então insere o log no DB para Histórico
+                    if(ac.action_user ==""){
+                        const users = await db.user.findAll();
+                        users.forEach(async u => {
+                            var msg = { guid: u.guid, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
+                            //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
+                            insertActivityResult = db.activity.create(msg)
+                            log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
+                            send(u.guid, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
+                        })
+
+                    }else{
+                        var msg = { guid: ac.action_user, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
+                        //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
+                        insertActivityResult = db.activity.create(msg)
+                        log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
+                        send(ac.action_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
+                    }
                     break;
                 case "number":
                     log("actionController:resolveAction:number");
                     log(await makeCall(ac))
+                    var msg = { guid: ac.action_user, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
+                    //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
+                    insertActivityResult = db.activity.create(msg)
+                    log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
+                    send(ac.action_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
+                
                     break;
                 case "button":
                     log("actionController:resolveAction:button");
@@ -117,10 +142,15 @@ async function resolveAction(from, actions){
                             id: ac.action_exec_prt
                         },
                     })
-                    send(ac.action_user, JSON.stringify({ api: "user", mt: "AlarmReceived", alarm: ac.action_name, src: from }))
                     buttonsByAlarm.forEach((b, index, array) => {
                         send(ac.action_user, { api: "user", mt: "ButtonRequest", name: b.button_name, alarm: b.button_prt, btn_id: b.id, type: b.button_type })
                     })
+                    var msg = { guid: ac.action_user, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
+                    //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
+                    insertActivityResult = db.activity.create(msg)
+                    log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
+                    send(ac.action_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
+                
                     break;
                 case 'command':
 
@@ -140,6 +170,13 @@ async function resolveAction(from, actions){
                         //log("actionController:resolveAction:command to gateway_id "+gateway_id);
                         const commnadResult = await TriggerCommand(gateway_id, ac.action_exec_device, ac.action_exec_prt+'-'+ac.action_exec_type_command_mode)
                         log("actionController:resolveAction:command to gateway_id result "+commnadResult);
+                        
+                        var msg = { guid: ac.action_exec_device, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
+                        //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
+                        insertActivityResult = db.activity.create(msg)
+                        log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
+                        broadcast({ api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
+                    
                     }else{
                         log("actionController:resolveAction:command ignored because state of "+ac.action_exec_prt+" on device "+ac.action_exec_device+" it's already "+ac.action_exec_type_command_mode );
                     }
@@ -149,14 +186,8 @@ async function resolveAction(from, actions){
                     log("actionController:resolveAction:unknown "+ ac.action_exec_type);
                     break;
             }
-            // Ação tratada... Então insere o log no DB para Histórico
-            var today = getDateNow();
-            var msg = { sip:  ac.action_user, from: from, name: ac.action_name, date: today, status: "inc", prt: ac.action_start_prt, details: ac.action_exec_prt }
-            //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
-            //insertTblActivities(msg);
-            //const insertActivityResult = db.activity.create(msg)
-            //log("actionController:resolveAction: insertActivityResult: " + JSON.stringify(insertActivityResult));
             
+                    
 
         })
         return true

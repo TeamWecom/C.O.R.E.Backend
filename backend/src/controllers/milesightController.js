@@ -3,13 +3,13 @@ import { send } from '../managers/webSocketManager.js';
 import { getDateNow } from '../utils/getDateNow.js';
 import { triggerActionByStartType, triggerActionBySensor } from './actionController.js';
 import db from '../managers/databaseSequelize.js';
-import { QueryTypes, Op } from 'sequelize';
+import { QueryTypes, Op, fn, col } from 'sequelize';
 import { stringToBase64 } from '../utils/typeHelpers.js';
 import { log } from '../utils/log.js';
 import {getParametersByDeviceName} from '../utils/milesightParameters.js';
 import {sendHttpPostRequest, sendHttpGetRequest } from '../managers/httpClient.js'
 import {licenseFileWithUsage} from '../controllers/licenseController.js'
-
+import { thresholdManager } from './buttonController.js';
 let devices = [];
 
 export const receiveSensor = async (obj) => {
@@ -32,14 +32,19 @@ export const receiveSensor = async (obj) => {
         //
         let count = 0;
 
-        const sensorsButtons = await db.button.findAll({
+        const distinctSensorsButtons = await db.button.findAll({
             where: {
-                button_prt: obj.deveui,
+                button_prt: obj.deveui
             },
+            attributes: [
+                [fn('DISTINCT', col('button_user')), 'button_user'], // Filtrar por button_user distinto
+            ]
         });
 
-        if (sensorsButtons.length > 0) {
-            sensorsButtons.forEach((bs) => {
+        
+        //Atualizar valores dos botões na console dos usuários
+        if (distinctSensorsButtons.length > 0) {
+            distinctSensorsButtons.forEach((bs) => {
                 // log("danilo-req sensorReceived: sensors.forEach " + JSON.stringify(bs));
                 const userConnected = send(bs.button_user, { api: "user", mt: "SensorReceived", value: obj });
                 if(userConnected){
@@ -48,6 +53,8 @@ export const receiveSensor = async (obj) => {
                 
             });
         }
+
+        await thresholdManager(obj);
 
         const result = await db.iotDevicesHistory.create(obj);
         log("milesightController:receiveSensor: event inserted into DB with id " + result.id+" and "+count+" users notified");
@@ -58,9 +65,10 @@ export const receiveSensor = async (obj) => {
     }
 };
 
+
 export const receiveImage = async (obj) => {
     try {
-        log("milesightController:receiveImage: " + JSON.stringify(obj));
+        //log("milesightController:receiveImage: " + JSON.stringify(obj));
         let values = obj.values;
         let devMac = values.devMac;
         values.devMac = devMac.replace(/:/g, '');;
@@ -147,9 +155,15 @@ export const receiveAlarm = async (obj) => {
                 // log("danilo-req sensorReceived: sensors.forEach " + JSON.stringify(bs));
                 const sendResult = await send(b.button_user, { api: "user", mt: "SmartButtonReceived", alarm: obj.press, btn_id: b.id, src: obj.deveui, date: getDateNow() })
                 if(sendResult){triggerAlarmResult +=1}
+                //intert into DB the event
+                var msg = { guid: b.button_user, from: obj.deveui, name: "alarm", date: getDateNow(), status: "start", details: b.id, prt: b.button_prt }
+                log("milesightController:receiveAlarm: will insert it on DB : " + JSON.stringify(msg));
+                const resultInsert = await db.activity.create(msg)
+                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+           
             });
         }
-
+        // insert activity for user
         const objAlarm = { from: obj.deveui, prt: obj.press, date: getDateNow(), btn_id: '' }
         const result = await db.activeAlarms.create(objAlarm)
         log('milesightController:receiveAlarm: ActiveAlarm create result ' + result)
@@ -158,7 +172,7 @@ export const receiveAlarm = async (obj) => {
 
         const resultInsert = await db.iotDevicesHistory.create(obj);
         log("milesightController:receiveAlarm: event inserted into DB with id " + result.id);
-        return { msg: result, alarmResult: TriggerAlarmResult };
+        return { msg: result, alarmResult: triggerAlarmResult };
 
     } catch (e) {
         return { msg: 'Error', actionResult: e };

@@ -224,7 +224,7 @@ export const clearIncomingCall = async (guid, device, num) => {
     }  
 }
 
-export const makeCall = async (guid, btn_id) => {
+export const makeCall = async (guid, btn_id, device, num) => {
     try{
         let pbxType = await db.config.findOne({
             where:{
@@ -232,60 +232,87 @@ export const makeCall = async (guid, btn_id) => {
             }
             
         })
-        //const callid = random.generateRandomBigInt(19);
-        const btn = await db.button.findOne({
-            where: {
-                id: btn_id
-            }
-        })
+
         const user = await db.user.findOne({
             where: {
                 guid: guid
             }
         })
 
-        let result = await db.call.create({
-            guid: guid,
-            number: btn.button_prt,
-            call_started: getDateNow(),
-            status: 1,
-            direction: "out",
-            btn_id: btn.id,
-            device: btn.button_device
-        })
-        log("buttonController:MakeCall: db.create.call success " + result.id);
-        log("buttonController:MakeCall: pbxType " + pbxType.value);
-        if(pbxType.value == 'INNOVAPHONE'){
+        if(btn_id){
+
+            //const callid = random.generateRandomBigInt(19);
+            const btn = await db.button.findOne({
+                where: {
+                    id: btn_id
+                }
+            })
             
-            return await innovaphoneMakeCall(btn, user)
+
+            let result = await db.call.create({
+                guid: guid,
+                number: btn.button_prt,
+                call_started: getDateNow(),
+                status: 1,
+                direction: "out",
+                btn_id: btn.id,
+                device: btn.button_device
+            })
+            log("buttonController:MakeCall: db.create.call success " + result.id);
+            log("buttonController:MakeCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneMakeCall(btn, user)
+            }
+            if(pbxType.valuel == 'EPYGI'){                                    
+                // if(pbxConfig.customHeaders){
+                //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
+                // }
+                
+                // var post = await sendHttpPostRequest(pbxType.vl, {
+                //     restPeerIP: pbxConfig.restPeerIP,
+                //     cmd: "CreateCall",
+                //     username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
+                //     password: pbxConfig.passwordEpygi, //Senha do ramal virtual
+                //     displayName: "REST 3PCC 120",
+                //     restCallID: result.id, //"7325840796693965112"
+                //     ownerID: "REST Req2Call",
+                //     sipUsername: "EmergencyS", //Nome mostrado durante o ring
+                //     callSource: device,
+                //     callDestination: prt
+                //     },pbxType.vl)
+                // log("danilo-req MakeCall: httpService.sendHttpPostRequest success "+post);
+                // return post
+            }
+        }else{
+            let result = await db.call.create({
+                guid: guid,
+                number: num,
+                call_started: getDateNow(),
+                status: 1,
+                direction: "out",
+                device: device
+            })
+            log("buttonController:MakeCall: db.create.call success " + result.id);
+            log("buttonController:MakeCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneMakeCall(null, user, device, num)
+            }
+            if(pbxType.valuel == 'EPYGI'){  
+
+            }
+
         }
-        if(pbxType.valuel == 'EPYGI'){                                    
-            // if(pbxConfig.customHeaders){
-            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
-            // }
-            
-            // var post = await sendHttpPostRequest(pbxType.vl, {
-            //     restPeerIP: pbxConfig.restPeerIP,
-            //     cmd: "CreateCall",
-            //     username: pbxConfig.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
-            //     password: pbxConfig.passwordEpygi, //Senha do ramal virtual
-            //     displayName: "REST 3PCC 120",
-            //     restCallID: result.id, //"7325840796693965112"
-            //     ownerID: "REST Req2Call",
-            //     sipUsername: "EmergencyS", //Nome mostrado durante o ring
-            //     callSource: device,
-            //     callDestination: prt
-            //     },pbxType.vl)
-            // log("danilo-req MakeCall: httpService.sendHttpPostRequest success "+post);
-            // return post
-        }
+        
+        
     }catch(e){
         log("danilo-req MakeCall: error " + e)
         return e
     }  
 }
 
-export const heldCall = async (guid, btn_id) => {
+export const heldCall = async (guid, btn_id, device, call) => {
     try{
         let pbxType = await db.config.findOne({
             where:{
@@ -293,37 +320,52 @@ export const heldCall = async (guid, btn_id) => {
             }
             
         })
-        //const callid = random.generateRandomBigInt(19);
-        const btn = await db.button.findOne({
-            where: {
-                id: btn_id
-            }
-        })
         const user = await db.user.findOne({
             where: {
                 guid: guid
             }
         })
 
-        let call = await db.call.findOne({
-            where: {
-              guid: guid,
-              number: btn.button_prt,
-              status: 1
-            },
-            order: [
-              ['id', 'DESC']
-            ]
-          });
-
-        log("buttonController:HeldCall: call.id " + call.id);
-        log("buttonController:HeldCall: pbxType " + pbxType.value);
-        if(pbxType.value == 'INNOVAPHONE'){
+        if(btn_id){
+            //const callid = random.generateRandomBigInt(19);
+            const btn = await db.button.findOne({
+                where: {
+                    id: btn_id
+                }
+            })
             
-            return await innovaphoneHeldCall(btn, user)
+
+            let call = await db.call.findOne({
+                where: {
+                guid: guid,
+                number: btn.button_prt,
+                status: 1
+                },
+                order: [
+                ['id', 'DESC']
+                ]
+            });
+
+            log("buttonController:HeldCall: call.id " + call.id);
+            log("buttonController:HeldCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneHeldCall(btn, user)
+            }
+            if(pbxType.valuel == 'EPYGI'){                                    
+            }
+
+        }else{
+            log("buttonController:HeldCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneHeldCall(null, user, device, call)
+            }
+            if(pbxType.valuel == 'EPYGI'){                                    
+            }
+
         }
-        if(pbxType.valuel == 'EPYGI'){                                    
-        }
+        
     }catch(e){
         log("danilo-req HeldCall: error " + e)
         return e
@@ -356,7 +398,7 @@ export const heldIncomingCall = async (guid, device, num, call) => {
         return e
     }  
 }
-export const retrieveCall = async (guid, btn_id) => {
+export const retrieveCall = async (guid, btn_id, device, call) => {
     try{
         let pbxType = await db.config.findOne({
             where:{
@@ -364,36 +406,47 @@ export const retrieveCall = async (guid, btn_id) => {
             }
             
         })
-        //const callid = random.generateRandomBigInt(19);
-        const btn = await db.button.findOne({
-            where: {
-                id: btn_id
-            }
-        })
         const user = await db.user.findOne({
             where: {
                 guid: guid
             }
         })
-
-        let call = await db.call.findOne({
-            where: {
-              guid: guid,
-              number: btn.button_prt,
-              status: 1
-            },
-            order: [
-              ['id', 'DESC']
-            ]
-          });
-
-        log("buttonController:RetrieveCall: call.id " + call.id);
-        log("buttonController:RetrieveCall: pbxType " + pbxType.value);
-        if(pbxType.value == 'INNOVAPHONE'){
+        if(btn_id){
+            //const callid = random.generateRandomBigInt(19);
+            const btn = await db.button.findOne({
+                where: {
+                    id: btn_id
+                }
+            })
             
-            return await innovaphoneRetrieveCall(btn, user)
-        }
-        if(pbxType.valuel == 'EPYGI'){                                    
+
+            let call = await db.call.findOne({
+                where: {
+                guid: guid,
+                number: btn.button_prt,
+                status: 1
+                },
+                order: [
+                ['id', 'DESC']
+                ]
+            });
+
+            log("buttonController:RetrieveCall: call.id " + call.id);
+            log("buttonController:RetrieveCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneRetrieveCall(btn, user)
+            }
+            if(pbxType.valuel == 'EPYGI'){                                    
+            }
+        }else{
+            log("buttonController:RetrieveCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneRetrieveCall(null, user, device, call)
+            }
+            if(pbxType.valuel == 'EPYGI'){                                    
+            }
         }
     }catch(e){
         log("danilo-req HeldCall: error " + e)
@@ -426,7 +479,7 @@ export const retrieveIncomingCall = async (guid, device, num, call) => {
         return e
     }  
 }
-export const redirectCall = async (guid, btn_id, destination) => {
+export const redirectCall = async (guid, btn_id, destination, device, call) => {
     try{
         let pbxType = await db.config.findOne({
             where:{
@@ -434,36 +487,47 @@ export const redirectCall = async (guid, btn_id, destination) => {
             }
             
         })
-        //const callid = random.generateRandomBigInt(19);
-        const btn = await db.button.findOne({
-            where: {
-                id: btn_id
-            }
-        })
         const user = await db.user.findOne({
             where: {
                 guid: guid
             }
         })
-
-        let call = await db.call.findOne({
-            where: {
-              guid: guid,
-              number: btn.button_prt,
-              status: 1
-            },
-            order: [
-              ['id', 'DESC']
-            ]
-          });
-
-        log("buttonController:redirectCall: call.id " + call.id);
-        log("buttonController:redirectCall: pbxType " + pbxType.value);
-        if(pbxType.value == 'INNOVAPHONE'){
+        if(btn_id){
+            //const callid = random.generateRandomBigInt(19);
+            const btn = await db.button.findOne({
+                where: {
+                    id: btn_id
+                }
+            })
             
-            return await innovaphoneRedirectCall(btn, user, destination)
-        }
-        if(pbxType.valuel == 'EPYGI'){                                    
+
+            let call = await db.call.findOne({
+                where: {
+                guid: guid,
+                number: btn.button_prt,
+                status: 1
+                },
+                order: [
+                ['id', 'DESC']
+                ]
+            });
+
+            log("buttonController:redirectCall: call.id " + call.id);
+            log("buttonController:redirectCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneRedirectCall(btn, user, destination)
+            }
+            if(pbxType.valuel == 'EPYGI'){                                    
+            }
+        }else{
+            log("buttonController:redirectCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneRedirectCall(null, user, destination, device, call)
+            }
+            if(pbxType.valuel == 'EPYGI'){                                    
+            }
         }
     }catch(e){
         log("danilo-req redirectCall: error " + e)
@@ -495,7 +559,7 @@ export const redirectIncomingCall = async (guid, device, call, destination) => {
         return e
     }  
 }
-export const dtmfCall = async (guid, btn_id, digit) => {
+export const dtmfCall = async (guid, btn_id, digit, device, call) => {
     try{
         let pbxType = await db.config.findOne({
             where:{
@@ -503,37 +567,50 @@ export const dtmfCall = async (guid, btn_id, digit) => {
             }
             
         })
-        //const callid = random.generateRandomBigInt(19);
-        const btn = await db.button.findOne({
-            where: {
-                id: btn_id
-            }
-        })
         const user = await db.user.findOne({
             where: {
                 guid: guid
             }
         })
-
-        let call = await db.call.findOne({
-            where: {
-              guid: guid,
-              number: btn.button_prt,
-              status: 1
-            },
-            order: [
-              ['id', 'DESC']
-            ]
-          });
-
-        log("buttonController:dtmfCall: call.id " + call.id);
-        log("buttonController:dtmfCall: pbxType " + pbxType.value);
-        if(pbxType.value == 'INNOVAPHONE'){
+        if(btn_id){
+            //const callid = random.generateRandomBigInt(19);
+            const btn = await db.button.findOne({
+                where: {
+                    id: btn_id
+                }
+            })
             
-            return await innovaphoneDtmfCall(btn, user, digit)
+
+            let call = await db.call.findOne({
+                where: {
+                guid: guid,
+                number: btn.button_prt,
+                status: 1
+                },
+                order: [
+                ['id', 'DESC']
+                ]
+            });
+
+            log("buttonController:dtmfCall: call.id " + call.id);
+            log("buttonController:dtmfCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneDtmfCall(btn, user, digit)
+            }
+            if(pbxType.valuel == 'EPYGI'){                                    
+            }
+        }else{
+            log("buttonController:dtmfCall: pbxType " + pbxType.value);
+            if(pbxType.value == 'INNOVAPHONE'){
+                
+                return await innovaphoneDtmfCall(btn, user, digit, device, call)
+            }
+            if(pbxType.valuel == 'EPYGI'){                                    
+            }
+
         }
-        if(pbxType.valuel == 'EPYGI'){                                    
-        }
+        
     }catch(e){
         log("danilo-req dtmfCall: error " + e)
         return e
@@ -564,7 +641,7 @@ export const dtmfIncomingCall = async (guid, device, call, digit) => {
         return e
     }  
 }
-export const clearCall = async (guid, btn_id) => {
+export const clearCall = async (guid, btn_id, device, call) => {
     try{
         let pbxType = await db.config.findOne({
             where:{
@@ -572,63 +649,77 @@ export const clearCall = async (guid, btn_id) => {
             }
             
         })
-        const btn = await db.button.findOne({
-            where: {
-                id: btn_id
-            }
-        })
         const user = await db.user.findOne({
             where: {
                 guid: guid
             }
         })
-
-        let call = await db.call.findOne({
-            where: {
-              guid: guid,
-              number: btn.button_prt,
-              status: 1
-            },
-            order: [
-              ['id', 'DESC']
-            ]
-          });
-
-        const callToUpdateResult = await db.call.update(
-            { call_ended: getDateNow(),
-                status: 3
-             }, // Valores a serem atualizados
-            { where: { id: parseInt(call.id) } } // Condição para atualização
-          );
-          log("buttonController:ClearCall::callToUpdateResult "+callToUpdateResult)
-        if(pbxType.value === 'INNOVAPHONE'){
-            return await innovaphoneClearCall(btn, user);
-
-        }
-        if(pbxType.value === 'EPYGI'){                                    
-            // if(pbxConfig.customHeaders){
-            //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
-            // }
-            // sendHttpPostRequest(pbxType.vl, {
-            //     restPeerIP: pbxType.restPeerIP,
-            //     cmd: "EndCall",
-            //     username: pbxType.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
-            //     password: pbxType.passwordEpygi, //Senha do ramal virtual
-            //     restCallID: call.id, //"7325840796693965112"
-            //     ownerID: "REST Req2Call",
-            //     },pbxType.vl)
-            //     .then(async function(res){
-                    
-            //         log("danilo-req ClearCall: httpService.sendHttpPostRequest success"+res);
-            //         return res
-                   
-            //     })
-            //     .catch (function (error, errorText, dbErrorCode) {
-            //         log("danilo-req CleaCall: httpService.sendHttpPostRequest error " + errorText);
-            //         return errorText
-            //     });
+        if(btn_id){
+            const btn = await db.button.findOne({
+                where: {
+                    id: btn_id
+                }
+            })
             
+    
+            let call = await db.call.findOne({
+                where: {
+                  guid: guid,
+                  number: btn.button_prt,
+                  status: 1
+                },
+                order: [
+                  ['id', 'DESC']
+                ]
+              });
+    
+            const callToUpdateResult = await db.call.update(
+                { call_ended: getDateNow(),
+                    status: 3
+                 }, // Valores a serem atualizados
+                { where: { id: parseInt(call.id) } } // Condição para atualização
+              );
+              log("buttonController:ClearCall::callToUpdateResult "+callToUpdateResult)
+            if(pbxType.value === 'INNOVAPHONE'){
+                return await innovaphoneClearCall(btn, user);
+    
+            }
+            if(pbxType.value === 'EPYGI'){                                    
+                // if(pbxConfig.customHeaders){
+                //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
+                // }
+                // sendHttpPostRequest(pbxType.vl, {
+                //     restPeerIP: pbxType.restPeerIP,
+                //     cmd: "EndCall",
+                //     username: pbxType.usernameEpygi, //Ramal virtual para controle das chamadas com 3PCC habilitado.
+                //     password: pbxType.passwordEpygi, //Senha do ramal virtual
+                //     restCallID: call.id, //"7325840796693965112"
+                //     ownerID: "REST Req2Call",
+                //     },pbxType.vl)
+                //     .then(async function(res){
+                        
+                //         log("danilo-req ClearCall: httpService.sendHttpPostRequest success"+res);
+                //         return res
+                       
+                //     })
+                //     .catch (function (error, errorText, dbErrorCode) {
+                //         log("danilo-req CleaCall: httpService.sendHttpPostRequest error " + errorText);
+                //         return errorText
+                //     });
+                
+            }
+
+        }else{
+            if(pbxType.value === 'INNOVAPHONE'){
+                return await innovaphoneClearCall(null, user, device, call);
+    
+            }
+            if(pbxType.value === 'EPYGI'){
+                
+            }
+
         }
+        
         
     }catch(e){
         log("danilo-req ClearCall: error " + e)
@@ -800,7 +891,7 @@ export const comboManager = async (combo, guid, mt) => {
     }
 
 }
-export const TriggerAlarm = async (guid, prt, btn_id) => {
+export const triggerAlarm = async (guid, prt, btn_id) => {
     let triggerAlarmResult = 0;
 
     try{
@@ -812,29 +903,30 @@ export const TriggerAlarm = async (guid, prt, btn_id) => {
                 button_type: 'alarm'
             }
         })
-        log('TriggerAlarm: btns '+ JSON.stringify(btns))
+        log('buttonController:triggerAlarm: btns to notify '+ JSON.stringify(btns.length))
         btns.forEach(async (b)=>{
-            log('TriggerAlarm: btn '+ JSON.stringify(b))
-            // connectionsUser.forEach(conn => {
-            //     if (conn.guid === guid) {
-            //         conn.send(JSON.stringify({ api: "user", mt: "AlarmReceived", alarm: b.button_prt, btn_id: b.id, src: guid }));
-            //         triggerAlarmResult +=1
-            //     }
-            // });
+            log('buttonController:triggerAlarm: btn '+ JSON.stringify(b))
 
-            const sendResult = await send(b.button_user, { api: "user", mt: "AlarmReceived", alarm: b.button_prt, btn_id: b.id, src: guid, date: getDateNow() })
+            const sendResult = await send(b.button_user, { api: "user", mt: "AlarmReceived", btn_id: b.id})
             if(sendResult){triggerAlarmResult +=1}
+
+            //intert into DB the event
+            var msg = { guid: b.button_user, from: guid, name: "alarm", date: getDateNow(), status: "inc", details: b.id, prt: b.button_prt }
+            log("buttonController:triggerAlarm: will insert it on DB : " + JSON.stringify(msg));
+            const resultInsert = await db.activity.create(msg)
+            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+            
         })
         let obj = {from:guid, prt: prt, date: getDateNow(), btn_id:btn_id}
         result = await db.activeAlarms.create(obj)
-        log('TriggerAlarm: activeAlarm create result ' + result)
+        log('buttonController:triggerAlarm: activeAlarm create result id ' + result.id)
         return triggerAlarmResult
     }catch(e){
-        log('TriggerAlarm: error '+ e)
+        log('buttonController:triggerAlarm: error '+ e)
     }
 
 }
-export const TriggerStopAlarm = async (guid, prt) => {
+export const triggerStopAlarm = async (guid, prt) => {
     let triggerStopAlarmResult = 0;
 
     try{
@@ -847,15 +939,16 @@ export const TriggerStopAlarm = async (guid, prt) => {
         log('buttonController:TriggerStopAlarm: btns '+ JSON.stringify(btns))
         btns.forEach(async (b)=>{
             log('buttonController:TriggerStopAlarm: btn '+ JSON.stringify(b))
-            // connectionsUser.forEach(conn => {
-            //     if (conn.guid === guid) {
-            //         conn.send(JSON.stringify({ api: "user", mt: "AlarmReceived", alarm: b.button_prt, btn_id: b.id, src: guid }));
-            //         triggerAlarmResult +=1
-            //     }
-            // });
 
-            const sendResult = await send(b.button_user, { api: "user", mt: "AlarmStopReceived", alarm: b.button_prt, btn_id: b.id, src: guid, date: getDateNow() })
+            const sendResult = await send(b.button_user, { api: "user", mt: "AlarmStopReceived", alarm: b.button_prt, btn_id: b.id })
             if(sendResult){triggerStopAlarmResult +=1}
+
+            //intert into DB the event
+            var msg = { guid: b.button_user, from: guid, name: "alarm", date: getDateNow(), status: "stop", details: b.id, prt: prt }
+            log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
+            const resultInsert = await db.activity.create(msg)
+            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+           
         })
 
         let result = await db.activeAlarms.destroy({
@@ -914,12 +1007,7 @@ export const getActiveAlarmHistory = async (guid) => {
 
     log("buttonController::getActiveAlarmHistory result= " + result.length + " buttons with alarm active for user "+guid);
     result.forEach(async function(b){
-        if(b.button_type=='sensor'){
-            send(guid, { api: "user", mt: "AlarmReceived", alarm: b.sensor_type, btn_id: b.id, src: b.from, date: b.date })
-    
-        }else{
-            send(guid, { api: "user", mt: "AlarmReceived", alarm: b.button_prt, btn_id: b.id, src: b.from, date: b.date })
-        }
+        send(guid, { api: "user", mt: "AlarmReceived", btn_id: b.id })
     })
 }
 
@@ -939,3 +1027,120 @@ export const getControllerStatusByGuid = async (guid, buttons) => {
     log("buttonController::getControllerStatusByGuid result= " + commandButtons.length + " controller buttons for user " + guid);
 
 }
+
+export const thresholdManager = async (obj) => {
+    try{
+        const sensorsButtons = await db.button.findAll({
+            where: {
+                button_prt: obj.deveui
+            }
+        });
+        // Verificar se os valores recebidos estão fora dos limites definidos nos botões
+        const alarmed_buttons = verificarThresholds(obj, sensorsButtons);
+        log("buttonsController:thresholdManager: alarmed buttons " + alarmed_buttons.length);
+
+        // Buscar todos os alarmes ativos de uma vez
+        const activeAlarms = await db.activeAlarms.findAll({
+        where: {
+            btn_id: sensorsButtons.map(b => b.id)  // Busca por todos os botões
+        }
+        });
+
+        // Converter a lista de alarmes ativos em um Set para fácil acesso
+        const activeAlarmSet = new Set(activeAlarms.map(alarm => alarm.btn_id));
+
+        // Lógica para botões que estão com o threshold atingido (ativar alarme)
+        alarmed_buttons.forEach(async (b) => {
+            if (!activeAlarmSet.has(b.id)) {
+                // Este foi o primeiro evento que atingiu o threshold para esse botão
+                const objAlarm = { from: obj.deveui, prt: b.sensor_type, date: getDateNow(), btn_id: b.id };
+                await db.activeAlarms.create(objAlarm);
+
+                const objActivity = {guid: b.button_user, from: obj.deveui, name: 'threshold', date: getDateNow(), status: 'start', prt: b.sensor_type, details: b.id };
+                const activity = await db.activity.create(objActivity);
+                // Notificar o usuário do novo alarme
+                send(b.button_user, { api: 'user', mt: 'AlarmReceived', notification: [activity], btn_id: b.id });
+                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [activity] });
+           
+                // Adicionar o botão ao conjunto de alarmes ativos
+                activeAlarmSet.add(b.id);
+                log("buttonsController:thresholdManager: Notificado o usuário do novo alarme e Adicionado o botão ao conjunto de alarmes ativos");
+            }
+        });
+
+        // Lógica para botões que voltaram ao estado normal (desativar alarme)
+        sensorsButtons.forEach(async (b) => {
+            if (!alarmed_buttons.some(alarm => alarm.id === b.id) && activeAlarmSet.has(b.id)) {
+                // O botão estava ativo em alarmes mas agora está dentro dos thresholds
+                await db.activeAlarms.destroy({
+                where: {
+                    btn_id: b.id
+                }
+                });
+                const objActivity = {guid: b.button_user, from: obj.deveui, name: 'threshold', date: getDateNow(), status: 'stop', prt: b.sensor_type, details: b.id };
+                const activity = await db.activity.create(objActivity);
+                
+                // Notificar o usuário sobre o alarme removido
+                send(b.button_user, { api: 'user', mt: 'AlarmStopReceived', notification: [activity], alarm:b.button_prt, btn_id: b.id });
+                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [activity] });
+           
+                // Remover o botão do conjunto de alarmes ativos
+                activeAlarmSet.delete(b.id);
+                log("buttonsController:thresholdManager: Notificado o usuário do alarme removido e Removido o botão ao conjunto de alarmes ativos");
+            }
+        });
+    }catch(e){
+        log(`buttonController:thresholdManager: Error ${e}`)
+    }
+}
+
+function verificarThresholds(data, buttons) {
+    var ativos = [];
+    //log("actionController:verificarAcoes:parameters data" + JSON.stringify(data))
+    buttons.forEach(function (entry) {
+        //log("actionController:verificarAcoes:entry" + JSON.stringify(entry))
+        // Verifica se o nome do sensor corresponde
+        if (entry.button_prt === data.deveui) {
+            // Verifica se o tipo de sensor corresponde
+            if (data.hasOwnProperty(entry.sensor_type)) {
+                if(entry.sensor_type == 'wind_direction'){
+                    var valuesMin = getDegreeRange(entry.sensor_min_threshold)
+                    entry.sensor_min_threshold = valuesMin.min;
+                    var valuesMax = getDegreeRange(entry.sensor_max_threshold)
+                    entry.sensor_max_threshold = valuesMax.max;
+                }
+                var value = data[entry.sensor_type];
+                // Verifica se o tipo de ação é max ou min
+                if (entry.sensor_max_threshold != "" && value >= parseInt(entry.sensor_max_threshold)) {
+                    ativos.push(entry);
+                } else if (entry.sensor_min_threshold != "" && value <= parseInt(entry.sensor_min_threshold)) {
+                    ativos.push(entry);
+                }
+            }
+        }
+    });
+    log("milesightController:verificarThresholds:return "+ ativos.length +" buttons out of threshold!")
+    return ativos;
+}
+function getDegreeRange(direction) {
+    switch (direction) {
+      case "N":
+        return { min: 0, max: 22.5 };
+      case "NE":
+        return { min: 22.5, max: 67.5 };
+      case "E":
+        return { min: 67.5, max: 112.5 };
+      case "SE":
+        return { min: 112.5, max: 157.5 };
+      case "S":
+        return { min: 157.5, max: 202.5 };
+      case "SW":
+        return { min: 202.5, max: 247.5 };
+      case "W":
+        return { min: 247.5, max: 292.5 };
+      case "NW":
+        return { min: 292.5, max: 337.5 };
+      default:
+        return { min: 0, max: 0 };
+    }
+  }

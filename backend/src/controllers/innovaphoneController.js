@@ -74,7 +74,7 @@ export const innovaphonePassiveRCCMonitorEnd = async (user) => {
         return e;
     }
 }
-export const innovaphoneMakeCall = async (btn, user) => {
+export const innovaphoneMakeCall = async (btn, user, device, num) => {
     try {
         let urlPbxTableUsers = await db.config.findOne({
             where:{ 
@@ -87,18 +87,33 @@ export const innovaphoneMakeCall = async (btn, user) => {
             }
         });
         log('innovaphoneController:innovaphoneMakeCall: urlPbxTableUsers '+JSON.stringify(urlPbxTableUsers.value))
-        if(btn.button_type == 'user'){
-            const usersInn = await pbxTableUsers()
-            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
-            btn.button_prt = userInn.e164
-        }
+        let objCall;
+        if(btn){
+            if(btn.button_type == 'user'){
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+                btn.button_prt = userInn.e164
+            }
+            objCall = { 
+                num: btn.button_prt, 
+                mode: 'MakeCall', 
+                guid: user.sip, 
+                device: btn.button_device,
+                btn_id: btn.id
+            }
 
-        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { 
-            num: btn.button_prt, 
-            mode: 'MakeCall', 
-            guid: user.sip, 
-            device: btn.button_device,
-            btn_id: btn.id}, customHeaders.value)
+        }else{
+
+            objCall = { 
+                num: num, 
+                mode: 'MakeCall', 
+                guid: user.sip, 
+                device: device,
+                btn_id: ''
+            }
+
+        }
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", objCall, customHeaders.value)
         log("innoaphoneController:innovaphoneMakeCall: will return: " +JSON.stringify(res.statusText));
         return res.statusText;
     }
@@ -135,7 +150,7 @@ export const innovaphoneConnectCall = async (user, device, call) => {
         return e;
     }
 }
-export const innovaphoneHeldCall = async (btn, user) => {
+export const innovaphoneHeldCall = async (btn, user, device, call) => {
     try {
         let urlPbxTableUsers = await db.config.findOne({
             where:{ 
@@ -147,16 +162,31 @@ export const innovaphoneHeldCall = async (btn, user) => {
                 entry: 'customHeaders'
             }
         });
-        if(btn.button_type == 'user'){
-            const usersInn = await pbxTableUsers()
-            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
-            btn.button_prt = userInn.e164
+        let objCall;
+        if(btn){
+            if(btn.button_type == 'user'){
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+                btn.button_prt = userInn.e164
+            }
+            objCall = { num: btn.button_prt, 
+                mode: 'HeldCall', 
+                guid: user.sip, 
+                device: btn.button_device,
+                btn_id: btn.id
+            }
+
+        }else{
+            objCall = { mode: 'HeldCall', 
+                guid: user.sip, 
+                device: device,
+                call: call,
+                btn_id: ''
+            }
+
         }
-        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: btn.button_prt, 
-            mode: 'HeldCall', 
-            guid: user.sip, 
-            device: btn.button_device,
-            btn_id: btn.id}, customHeaders.value)
+        
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", objCall, customHeaders.value)
         log("innovaphoneController:innovaphoneHeldCall: will return "+JSON.stringify(res.statusText));
         return res.statusText;
     }
@@ -194,7 +224,7 @@ export const innovaphoneHeldIncomingCall = async (user, device, num, call) => {
         return e;
     }
 }
-export const innovaphoneRedirectCall = async (btn, user, destination) => {
+export const innovaphoneRedirectCall = async (btn, user, destination, device, call) => {
     try {
         let urlPbxTableUsers = await db.config.findOne({
             where:{ 
@@ -206,17 +236,31 @@ export const innovaphoneRedirectCall = async (btn, user, destination) => {
                 entry: 'customHeaders'
             }
         });
-        if(btn.button_type == 'user'){
-            const usersInn = await pbxTableUsers()
-            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
-            btn.button_prt = userInn.e164
+        let objCall;
+        if(btn){
+            if(btn.button_type == 'user'){
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+                btn.button_prt = userInn.e164
+            }
+            objCall = { num: btn.button_prt, 
+                mode: 'RedirectCall', 
+                guid: user.sip, 
+                device: btn.button_device,
+                btn_id: btn.id,
+                destination: destination
+            }
+        }else{
+            objCall = { mode: 'RedirectCall', 
+                guid: user.sip, 
+                device: device,
+                btn_id: '',
+                call: call,
+                destination: destination
+            }
         }
-        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: btn.button_prt, 
-            mode: 'RedirectCall', 
-            guid: user.sip, 
-            device: btn.button_device,
-            btn_id: btn.id,
-            destination: destination}, customHeaders.value)
+        
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", objCall, customHeaders.value)
         log("innovaphoneController:innovaphoneRedirectCall: will return "+JSON.stringify(res.statusText));
         return res.statusText;
     }
@@ -256,7 +300,7 @@ export const innovaphoneRedirectIncomingCall = async (user, device, call, destin
         return e;
     }
 }
-export const innovaphoneDtmfCall = async (btn, user, digit) => {
+export const innovaphoneDtmfCall = async (btn, user, digit, device, call) => {
     try {
         let urlPbxTableUsers = await db.config.findOne({
             where:{ 
@@ -268,17 +312,32 @@ export const innovaphoneDtmfCall = async (btn, user, digit) => {
                 entry: 'customHeaders'
             }
         });
-        if(btn.button_type == 'user'){
-            const usersInn = await pbxTableUsers()
-            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
-            btn.button_prt = userInn.e164
+        let objCall;
+        if(btn){
+            if(btn.button_type == 'user'){
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+                btn.button_prt = userInn.e164
+            }
+            objCall = { num: btn.button_prt, 
+                mode: 'SendDtmfDigits', 
+                guid: user.sip, 
+                device: btn.button_device,
+                btn_id: btn.id,
+                digit: digit
+            }
+
+        }else{
+            objCall = { mode: 'SendDtmfDigits', 
+                guid: user.sip, 
+                device: device,
+                btn_id: '',
+                call: call,
+                digit: digit
+            }
         }
-        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: btn.button_prt, 
-            mode: 'SendDtmfDigits', 
-            guid: user.sip, 
-            device: btn.button_device,
-            btn_id: btn.id,
-            digit: digit}, customHeaders.value)
+        
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", objCall, customHeaders.value)
         log("innovaphoneController:innovaphoneDtmfCall: will return "+JSON.stringify(res.statusText));
         return res.statusText;
     }
@@ -318,7 +377,7 @@ export const innovaphoneDtmfIncomingCall = async (user, device, call, digit) => 
         return e;
     }
 }
-export const innovaphoneRetrieveCall = async (btn, user) => {
+export const innovaphoneRetrieveCall = async (btn, user, device, call) => {
     try {
         let urlPbxTableUsers = await db.config.findOne({
             where:{ 
@@ -330,16 +389,29 @@ export const innovaphoneRetrieveCall = async (btn, user) => {
                 entry: 'customHeaders'
             }
         });
-        if(btn.button_type == 'user'){
-            const usersInn = await pbxTableUsers()
-            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
-            btn.button_prt = userInn.e164
+        let objCall;
+        if(btn){
+            if(btn.button_type == 'user'){
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+                btn.button_prt = userInn.e164
+            }
+            objCall = { num: btn.button_prt, 
+                mode: 'RetrieveCall', 
+                guid: user.sip, 
+                device: btn.button_device,
+                btn_id: btn.id
+            }
+        }else{
+            objCall = {mode: 'RetrieveCall', 
+                guid: user.sip, 
+                device: device,
+                call: call,
+                btn_id: ''
+            }
         }
-        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: btn.button_prt, 
-            mode: 'RetrieveCall', 
-            guid: user.sip, 
-            device: btn.button_device,
-            btn_id: btn.id}, customHeaders.value)
+        
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", objCall, customHeaders.value)
         log("innovaphoneController:innovaphoneRetrieveCall: will return "+JSON.stringify(res.statusText));
         return res.statusText;
     }
@@ -405,7 +477,7 @@ export const innovaphoneClearIncomingCall = async (user, device, num) => {
         return e;
     }
 }
-export const innovaphoneClearCall = async (btn, user) => {
+export const innovaphoneClearCall = async (btn, user, device, call) => {
     try {
         let urlPbxTableUsers = await db.config.findOne({
             where:{ 
@@ -417,16 +489,31 @@ export const innovaphoneClearCall = async (btn, user) => {
                 entry: 'customHeaders'
             }
         });
-        if(btn.button_type == 'user'){
-            const usersInn = await pbxTableUsers()
-            const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
-            btn.button_prt = userInn.e164
+        let objCall;
+        if(btn){
+            if(btn.button_type == 'user'){
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+                btn.button_prt = userInn.e164
+            }
+            objCall = { num: btn.button_prt, 
+                mode: 'ClearCall', 
+                guid: user.sip, 
+                device: btn.button_device,
+                btn_id: btn.id
+            }
+
+        }else{
+            objCall ={ mode: 'ClearCall', 
+                guid: user.sip, 
+                device: device,
+                call: call,
+                btn_id: ''
+            }
+
         }
-        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", { num: btn.button_prt, 
-            mode: 'ClearCall', 
-            guid: user.sip, 
-            device: btn.button_device,
-            btn_id: btn.id}, customHeaders.value)
+        
+        const res = await sendHttpPostRequest(urlPbxTableUsers.value+"/rcc", objCall, customHeaders.value)
         log("innovaphoneController:innovaphoneClearCall: will return "+JSON.stringify(res.statusText));
         return res.statusText;
     }
@@ -568,6 +655,7 @@ export const requestPresences = async (guid) => {
 }
 
 export const callEvents = async (obj) =>{
+    log('innovaphoneController:callEvents: '+JSON.stringify(obj))
     try{
         if(obj.mode == 'CallRecordId'){
             const user = await db.user.findOne({
@@ -577,20 +665,24 @@ export const callEvents = async (obj) =>{
             })
 
             if(user){
-                const btn = await db.button.findOne({
-                    where: {
-                        id: obj.btn_id,
+                if(obj.btn_id && obj.btn_id !=""){
+                    const btn = await db.button.findOne({
+                        where: {
+                            id: obj.btn_id,
+                        }
+                    })
+                    if(btn){
+                        //send(user.guid, {api: "user", mt: "CallDisconnected", btn_id: btn.id})
+                        //broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
                     }
-                })
-                if(btn){
-                    //send(user.guid, {api: "user", mt: "CallDisconnected", btn_id: btn.id})
-                    //broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
                 }
+                
 
                 const call = await db.call.findOne({
                     where: {
                       guid: user.guid,
-                      number: btn.button_prt,
+                      number: obj.num,
+                      device: obj.device,
                       status: 1
                     },
                     order: [
@@ -601,6 +693,7 @@ export const callEvents = async (obj) =>{
                 if(call){
                     const callToUpdateResult = await db.call.update(
                         { record_id: obj.record_id,
+                            call_innovaphone: obj.call,
                             status: 1
                          }, // Valores a serem atualizados
                         { where: { id: parseInt(call.id) } } // Condição para atualização
@@ -624,7 +717,7 @@ export const callEvents = async (obj) =>{
                         }
                     })
                     if(btn){
-                        send(user.guid, {api: "user", mt: "CallDisconnected", btn_id: btn.id})
+                        send(user.guid, {api: "user", mt: "CallDisconnected", btn_id: btn.id, device: obj.device})
                         broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
                     }
     
@@ -632,6 +725,8 @@ export const callEvents = async (obj) =>{
                         where: {
                           guid: user.guid,
                           number: btn.button_prt,
+                          call_innovaphone: obj.call,
+                          device: obj.device,
                           status: 1
                         },
                         order: [
@@ -654,8 +749,8 @@ export const callEvents = async (obj) =>{
                           guid: user.guid,
                           number: obj.num,
                           call_innovaphone: obj.call,
+                          device: obj.device,
                           status: 1,
-                          direction: 'inc'
                         },
                         order: [
                           ['id', 'DESC']
@@ -674,7 +769,7 @@ export const callEvents = async (obj) =>{
                     const usersInn = await pbxTableUsers()
                     const userInn = usersInn.filter(u => u.guid == obj.guid )[0]
                     const device = userInn.devices.filter(d => d.hw == obj.device)[0];
-                    send(user.guid, {api: "user", mt: "IncomingCallDisconnected", device: obj.device, deviceText: device.text, num: obj.num, call: obj.call , btn_id: ''})
+                    send(user.guid, {api: "user", mt: "IncomingCallDisconnected", device: obj.device, deviceText: device.text, num: obj.num, call: obj.call})
                     broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
                     broadcast({ api: "user", mt: "NumberOnline", number: userInn.e164, note: "online", color: "online" })
                 }
@@ -688,34 +783,48 @@ export const callEvents = async (obj) =>{
                 }
             })
             if(user){
-                const btn = await db.button.findOne({
-                    where: {
-                        id: obj.btn_id,
+                if(obj.btn_id && obj.btn_id !=""){
+                    const btn = await db.button.findOne({
+                        where: {
+                            id: obj.btn_id,
+                        }
+                    })
+                    if(btn){
+                        send(user.guid, {api: "user", mt: "CallRinging", btn_id: btn.id, device: obj.device})
+                        broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
                     }
-                })
-                if(btn){
-                    send(user.guid, {api: "user", mt: "CallRinging", btn_id: btn.id})
+                }else{
+                    send(user.guid, {api: "user", mt: "CallRinging", call: obj.call, device: obj.device})
                     broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
                 }
                 const call = await db.call.findOne({
                     where: {
                       guid: user.guid,
-                      number: btn.button_prt,
+                      number: obj.num,
+                      device: obj.device,
                       status: 1
                     },
                     order: [
                       ['id', 'DESC']
                     ]
-                  });
+                });
     
                 if(call){
                     const callToUpdateResult = await db.call.update(
                         { call_ringing: getDateNow(),
+                            call_innovaphone: obj.call,
                             status: 1
                          }, // Valores a serem atualizados
                         { where: { id: parseInt(call.id) } } // Condição para atualização
                     );
                     log("innovaphoneController:callEvents::callToUpdateResult "+callToUpdateResult)
+                    
+                    //intert into DB the event
+                    var msg = { guid: user.guid, from: obj.num, name: "call", date: getDateNow(), status: "out", details: call.id, prt: obj.num }
+                    log("innovaphoneController:callEvents:CallRinging will insert it on DB : " + JSON.stringify(msg));
+                    const resultInsert = await db.activity.create(msg)
+                    send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+           
                 }
             }
         }
@@ -750,8 +859,14 @@ export const callEvents = async (obj) =>{
                         device: obj.device
                     })
                     log("innovaphoneController:callEvents:IncomingCallRinging: db.create.call success " + result.id);
+                    //intert into DB the event
+                    var msg = { guid: user.guid, from: obj.num, name: "call", date: getDateNow(), status: "inc", details: result.id, prt: obj.num }
+                    log("innovaphoneController:callEvents:IncomingCallRinging: will insert it on DB : " + JSON.stringify(msg));
+                    const resultInsert = await db.activity.create(msg)
+                    send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+           
                 }else{
-                    log("innovaphoneController:callEvents:IncomingCallRinging: call already exist on DB with id " + call.id);
+                    log("innovaphoneController:callEvents:IncomingCallRinging: call already exist on DB with id " + result.id);
                 }
                 
                 const usersInn = await pbxTableUsers()
@@ -769,19 +884,25 @@ export const callEvents = async (obj) =>{
                 }
             })
             if(user){
-                const btn = await db.button.findOne({
-                    where: {
-                        id: obj.btn_id,
+                if(obj.btn_id && obj.btn_id !=""){
+                    const btn = await db.button.findOne({
+                        where: {
+                            id: obj.btn_id,
+                        }
+                    })
+                    if(btn){
+                        send(user.guid, {api: "user", mt: "CallConnected", btn_id: btn.id, device: obj.device})
+                        broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "busy", color: "busy" })
                     }
-                })
-                if(btn){
-                    send(user.guid, {api: "user", mt: "CallConnected", btn_id: btn.id})
+                }else{
+                    send(user.guid, {api: "user", mt: "CallConnected", call: obj.call, device: obj.device})
                     broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "busy", color: "busy" })
                 }
                 const call = await db.call.findOne({
                     where: {
                       guid: user.guid,
-                      number: btn.button_prt,
+                      call_innovaphone: obj.call,
+                      number: obj.num,
                       status: 1
                     },
                     order: [

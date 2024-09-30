@@ -50,6 +50,10 @@ UIRouter.use(express.static(staticDir));
 UIRouter.get('/login', (req, res) => {
     res.sendFile(path.join(staticDir, 'login.html'));
 });
+// Rota para reset de senha do usuário
+UIRouter.get('/reset-password', (req, res) => {
+    res.sendFile(path.join(staticDir, 'reset-password.html'));
+});
 
 UIRouter.get('/user', async (req, res) => {
     const query = url.parse(req.url, true).query;

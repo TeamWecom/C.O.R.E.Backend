@@ -108,6 +108,12 @@ export const licenseFileWithUsage = async() =>{
     if (lic['record'] !== undefined) {
         lic['record'] = { total: lic['record'], used: lic['record'] };
     }
+    if (lic['server'] !== undefined) {
+        lic['server'] = { total: lic['server'], used: lic['server'] };
+    }
+    if (lic['alexa'] !== undefined) {
+        lic['alexa'] = { total: lic['alexa'], used: lic['alexa'] };
+    }
     return lic;
     
 }

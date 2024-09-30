@@ -1,9 +1,11 @@
 // routes/webServerAPIRoutes.js
 import express from 'express';
+import db from '../managers/databaseSequelize.js';
 import { log } from '../utils/log.js';
 import {
     createUser, signInUser, updatePassword,
-    updateUser, resetPassword, listUsers, deleteUser
+    updateUser, resetPasswordByAdmin, listUsers, deleteUser,
+    requestPasswordReset, resetPassword
 } from '../controllers/authController.js';
 import multer from 'multer';
 import { renewToken, validateToken } from '../utils/validadeToken.js';
@@ -14,7 +16,8 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { generatePDF, generateExcel } from '../utils/generateReportFile.js';
 import fs from 'fs';
-import { backupDatabase } from '../utils/dbMaintenance.js';
+import { backupDatabase, compressAndDownloadFiles } from '../utils/dbMaintenance.js';
+
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -22,6 +25,7 @@ const __dirname = dirname(__filename);
 // Define o diretório onde os arquivos estáticos serão servidos
 const staticDir = path.join(__dirname, '../httpfiles');
 router.use(express.static(staticDir));
+
 
 // Configuração do Multer para armazenar os arquivos na pasta 'uploads' e preservar o nome original
 const storage = multer.diskStorage({
@@ -33,7 +37,7 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ limits: { fileSize: 100 * 1024 * 1024 }, storage: storage });
 
 // Rota para upload de arquivos
 router.post('/uploadFiles', upload.single('file'), async (req, res) => {
@@ -125,7 +129,7 @@ router.post('/updatePassword', async (req, res) => {
 // Rota para resetar senha do usuário
 router.post('/resetPassword', async (req, res) => {
     try {
-        const result = await resetPassword(req.headers['x-auth'], req.body);
+        const result = await resetPasswordByAdmin(req.headers['x-auth'], req.body);
         res.status(200).send(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -142,8 +146,23 @@ router.get('/renewToken', async (req, res) => {
     }
 });
 
+// Route for requesting password reset
+router.post('/request-password-reset', requestPasswordReset);
+
+// Route for handling password reset (token validation + new password submission)
+router.post('/reset-password', resetPassword);
+
 router.post('/generatePdf', async (req, res) => {
     try{
+        const token = req.headers['x-auth'] || '';
+        const decoded = await validateToken(token);
+        const user = await db.user.findOne({ where: { id: decoded.id } });
+
+        if (!user) {
+            log("webServerAPIRoutes:generatePdf: ID no Token JWT inválido");
+            throw new Error('Token de autenticação inválido');
+        }
+
         const body = req.body;
         const {staticDir, pdfName,filePath} = await generatePDF(body)
         //res.status(200).send(pdf);
@@ -160,7 +179,7 @@ router.post('/generatePdf', async (req, res) => {
             }
     
             // Após o download, você pode excluir o arquivo temporário
-            fs.unlink(pdfPath, (err) => {
+            fs.unlink(filePath, (err) => {
             if (err) {
                 log('webServerAPIRoutes:/generatePdf: Erro ao remover arquivo temporário:', err);
             }
@@ -173,6 +192,16 @@ router.post('/generatePdf', async (req, res) => {
 })
 router.post('/generateExcel', async (req, res) => {
     try {
+
+        const token = req.headers['x-auth'] || '';
+        const decoded = await validateToken(token);
+        const user = await db.user.findOne({ where: { id: decoded.id } });
+
+        if (!user) {
+            log("webServerAPIRoutes:generatePdf: ID no Token JWT inválido");
+            throw new Error('Token de autenticação inválido');
+        }
+
         const body = req.body;
         const { staticDir, fileName, filePath } = await generateExcel(body.data, body.name);
         log('webServerAPIRoutes:/generateExcel: staticDir: '+staticDir);
@@ -200,6 +229,16 @@ router.post('/generateExcel', async (req, res) => {
 
 router.get('/backupDataBase', async (req, res) => {
     try{
+
+        const token = req.headers['x-auth'] || '';
+        const decoded = await validateToken(token);
+        const user = await db.user.findOne({ where: { id: decoded.id } });
+
+        if (!user) {
+            log("webServerAPIRoutes:backupDataBase: ID no Token JWT inválido");
+            throw new Error('Token de autenticação inválido');
+        }
+
         const {backupFile, fileName, backupDir} = await backupDatabase();
 
         log('webServerAPIRoutes:/backupDataBase: backupDir: '+backupDir);
@@ -218,6 +257,46 @@ router.get('/backupDataBase', async (req, res) => {
             fs.unlink(backupFile, (err) => {
             if (err) {
                 log('webServerAPIRoutes:/backupDataBase: Erro ao remover arquivo temporário:', err);
+            }
+            });
+        });
+
+    } catch (e) {
+        res.status(500).json({error: e.message});
+    }
+})
+router.post('/backupFiles', async (req, res) => {
+    try{
+
+        const token = req.headers['x-auth'] || '';
+        const decoded = await validateToken(token);
+        const user = await db.user.findOne({ where: { id: decoded.id } });
+
+        if (!user) {
+            log("webServerAPIRoutes:backupFiles: ID no Token JWT inválido");
+            throw new Error('Token de autenticação inválido');
+        }
+        const body = req.body;
+        const {backupFile, fileName, backupDir} = await compressAndDownloadFiles(body.from);
+
+        log('webServerAPIRoutes:/backupFiles: backupDir: '+backupDir);
+        log('webServerAPIRoutes:/backupFiles: name: '+fileName);
+        log('webServerAPIRoutes:/backupFiles: backupFile: '+backupFile);
+        // Forçar o download do arquivo
+        res.download(backupFile, fileName, (err) => {
+            if (err) {
+            log('webServerAPIRoutes:/backupFiles: Erro ao fazer download do Arquivo: '+err);
+            res.status(500).send('Erro ao fazer download do Arquivo');
+            }else{
+                log('webServerAPIRoutes:/backupFiles: download do Arquivo OK!');
+            }
+    
+            // Após o download, você pode excluir o arquivo temporário
+            fs.unlink(backupFile, (err) => {
+            if (err) {
+                log('webServerAPIRoutes:/backupFiles: Erro ao remover arquivo temporário:'+err);
+            }else{
+                log('webServerAPIRoutes:/backupFiles: Removido arquivo de backup temporário:');
             }
             });
         });

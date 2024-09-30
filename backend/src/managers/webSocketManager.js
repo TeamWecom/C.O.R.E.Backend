@@ -17,7 +17,6 @@ export const addConnection = async (conn) => {
             const today = getDateNow();
             const msg = { guid: conn.guid, name: conn.dn, date: today, status: "Login", details: "APP" };
             const insertResult = await db.availability.create(msg);
-            log(insertResult)
         }
         conn.send(JSON.stringify({ mt: "UserSessionResult", guid: conn.guid }));
     }

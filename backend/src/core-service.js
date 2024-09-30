@@ -12,6 +12,8 @@ import UIRouter from './routes/webServerUIRoutes.js';
 import {handleConnection} from './routes/websocketRoutes.js';
 import cors from 'cors';
 import WebSocket, { WebSocketServer } from 'ws';
+import AlexaRouter from './routes/alexaRoutes.js';
+import {checkBackupRoutine} from './utils/dbMaintenance.js';
 ///import WebSocket from 'ws';
 const app = express();
 
@@ -53,7 +55,16 @@ const PORT_MQTT = process.env.PORT_MQTT || 1833; // Porta padrão para MQTT
 
 // Permitindo todas as origens
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
+app.use(bodyParser.json({
+    limit: '500mb',
+    inflate: true,
+    verify: (req, res, buf, encoding) => {
+      req.rawBody = buf;
+    }
+  }));
+app.use(bodyParser.urlencoded({ limit: '500mb', extended: true }));
 
 async function connectWithRetry() {
     while (true) { // Loop infinito, vai tentar até que a conexão seja bem-sucedida
@@ -187,9 +198,10 @@ async function checkPbxTypeForPresenceSubscription() {
             pbxApiPresenceSubscription();
         }
     } catch (error) {
-        console.error('core-service:checkPbxTypeForPresenceSubscription:Erro ao verificar o pbxType:', error);
+        log('core-service:checkPbxTypeForPresenceSubscription:Erro ao verificar o pbxType:'+  error);
     }
 }
+
 
 //#region MQTT
 // Criar a instância do broker MQTT
@@ -207,3 +219,7 @@ server.listen(PORT_MQTT, () => {
 mqttRoutes(broker);
 
 //#endregion
+
+//Rota da Alexa
+app.use('/api', AlexaRouter);
+checkBackupRoutine();

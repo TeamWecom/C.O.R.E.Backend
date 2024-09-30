@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulário de Login</title>
+</head>
+<body>
+    <h2>Formulário de Login</h2>
+    <form id="loginForm">
+        <div>
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+        <div>
+            <label for="password">Senha:</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit">Enviar</button>
+    </form>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            // Obtém os valores dos campos de entrada
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            // Cria um objeto com os dados do formulário
+            const formData = {
+                email: email,
+                password: password
+            };
+
+            try {
+                // Envia os dados para o backend via método POST
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                // Verifica se a requisição foi bem-sucedida
+                if (response.ok) {
+                    // Extrai e exibe a resposta do backend na console
+                    const data = await response.json();
+                    console.log('Resposta do backend:', data);
+
+                    // Armazena o token no localStorage
+                    localStorage.setItem('token', data.accessToken);
+
+                    // Redireciona para teste.html após a resposta ok
+                    window.location.href = '/ui/user?tk='+data.accessToken;
+
+
+                } else {
+                    console.error('Erro ao enviar dados para o backend:', response.statusText);
+                    window.alert(response.statusText)
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+        });
+    </script>
+</body>
+</html>

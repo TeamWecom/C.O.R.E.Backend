@@ -16,7 +16,7 @@
             <label for="password">Senha:</label>
             <input type="password" id="password" name="password" required>
         </div>
-        <button type="submit">Enviar</button>
+        <button type="submit">Enviar</button><button id="reset-password">Trocar Senha</button>
     </form>
 
     <script>
@@ -26,11 +26,13 @@
             // Obtém os valores dos campos de entrada
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
+            // Codificar a senha em Base64
+            const encodedPassword = btoa(password);
 
             // Cria um objeto com os dados do formulário
             const formData = {
                 email: email,
-                password: password
+                password: encodedPassword
             };
 
             try {
@@ -54,6 +56,48 @@
 
                     // Redireciona para teste.html após a resposta ok
                     window.location.href = '/ui/user?tk='+data.accessToken;
+
+
+                } else {
+                    console.error('Erro ao enviar dados para o backend:', response.statusText);
+                    window.alert(response.statusText)
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+        });
+        document.getElementById('reset-password').addEventListener('click', async function(event) {
+            event.preventDefault();
+
+            // Obtém os valores dos campos de entrada
+            const email = document.getElementById('email').value;
+
+            if(!email){
+                window.alert('Informe o email!');
+                return;
+            }
+            // Cria um objeto com os dados do formulário
+            const formData = {
+                email: email
+            };
+
+            try {
+                // Envia os dados para o backend via método POST
+                const response = await fetch('/api/request-password-reset', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                // Verifica se a requisição foi bem-sucedida
+                if (response.ok) {
+                    // Extrai e exibe a resposta do backend na console
+                    const data = await response.json();
+                    console.log('Resposta do backend:', data);
+
+                    window.alert(data.message)
 
 
                 } else {

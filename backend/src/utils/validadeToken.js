@@ -1,4 +1,9 @@
 import jwt from 'jsonwebtoken';
+import db from '../managers/databaseSequelize.js';
+import { QueryTypes, Op } from 'sequelize';
+import crypto from 'crypto';
+
+let passwordResetRequests = [];
 
 // Função para criar o token JWT
 export function crateToken(id) {
@@ -38,3 +43,53 @@ export function renewToken(oldToken) {
         
     });
 }
+
+// Generate a reset token, store it in the database with an expiration time
+export const generateResetToken = async (guid) => {
+    const token = crypto.randomBytes(32).toString('hex');
+    const expirationTime = new Date(Date.now() + 60 * 60 * 1000); // token valid for 1 hour
+
+    // Store token and expiration in the database
+    // await db.passwordReset.create({
+    //     guid,
+    //     token,
+    //     expiresAt: expirationTime.toDateString()
+    // });
+    passwordResetRequests.push({
+        guid,
+        token,
+        expiresAt: expirationTime
+    });
+
+    return token;
+};
+
+// Validate the reset token
+export const validateResetToken = async (token) => {
+    // const resetRequest = await db.passwordReset.findOne({
+    //     where: {
+    //         token,
+    //         expiresAt: {
+    //             [Op.gt]: new Date()  // Check if the token is still valid (expiration time > current time)
+    //         }
+    //     }
+    // });
+
+    // Encontrar o índice da requisição de reset de senha correspondente ao token
+    const resetIndex = passwordResetRequests.findIndex(request => 
+        request.token === token && request.expiresAt > new Date()
+    );
+
+    if (resetIndex === -1) {
+        return null;  // Token inválido ou expirado
+    }
+
+    // Token válido, extrair a requisição de reset
+    const resetRequest = passwordResetRequests[resetIndex];
+
+    // Remover a requisição da lista
+    passwordResetRequests.splice(resetIndex, 1);
+
+    // Token is valid, return the user's GUID
+    return resetRequest.guid;
+};

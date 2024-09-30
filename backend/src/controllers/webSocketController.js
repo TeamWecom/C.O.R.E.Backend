@@ -11,8 +11,8 @@ import { makeCall,
     retrieveCall, 
     clearCall, 
     comboManager, 
-    TriggerAlarm, 
-    TriggerStopAlarm, 
+    triggerAlarm, 
+    triggerStopAlarm, 
     selectButtons, 
     redirectCall, 
     dtmfCall, 
@@ -115,7 +115,12 @@ export const handleConnection = async (conn, req) => {
                         if(resultInsertMessage){
                             const resultSend = await send(obj.to, { api: "user", mt: "Message", src: conn.guid, msg: obj.msg, id: resultInsertMessage.id, result: [resultInsertMessage] })
                             conn.send(JSON.stringify({api: "user", mt: "MessageResult", delivered: resultSend, msg_id: resultInsertMessage.id, result: [resultInsertMessage]}))
-                        }   
+                            //intert into DB the event
+                            var msg = { guid: obj.to, from: conn.guid, name: "message", date: getDateNow(), status: "inc", details: resultInsertMessage.id, prt: obj.msg }
+                            log("webSocketController:Message: will insert it on DB : " + JSON.stringify(msg));
+                            const resultInsert = await db.activity.create(msg)
+                            send(obj.to, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+                        }
                     }
                     if (obj.mt == "ChatDelivered") {
 
@@ -266,6 +271,30 @@ export const handleConnection = async (conn, req) => {
 
                         log(await rccMonitor(conn.guid))
                     }
+                    if (obj.mt == "getHistory") {
+                        log("webSocketController:getHistory:");
+                    
+                        // Verificar se 'startId' foi fornecido
+                        const startId = obj.startId || null;
+                        const whereCondition = {
+                            guid: conn.guid
+                        };
+                    
+                        if (startId) {
+                            // Se 'startId' for fornecido, busca os registros com id menor que 'startId'
+                            whereCondition.id = {
+                                [db.Sequelize.Op.lt]: startId
+                            };
+                        }
+                    
+                        const history = await db.activity.findAll({
+                            where: whereCondition,
+                            order: [['id', 'desc']],
+                            limit: 50
+                        });
+                    
+                        conn.send(JSON.stringify({ api: "user", mt: "getHistoryResult", src: obj.src, result: history }));
+                    }
                     //#endregion
                     //#region BOTÕES
                     if (obj.mt == "UpdateButton") {
@@ -290,7 +319,7 @@ export const handleConnection = async (conn, req) => {
                     }
                     if (obj.mt == "TriggerCall") {
                         
-                        let result = await makeCall(conn.guid, obj.btn_id)
+                        let result = await makeCall(conn.guid, obj.btn_id, obj.device, obj.num)
                         
                         log("webSocketController:TriggerCall: result : " + JSON.stringify(result));
 
@@ -312,7 +341,7 @@ export const handleConnection = async (conn, req) => {
                     }
                     if (obj.mt == "HeldCall") {
                         
-                        let result = await heldCall(conn.guid, obj.btn_id)
+                        let result = await heldCall(conn.guid, obj.btn_id, obj.device, obj.call)
                         
                         log("webSocketController:HeldCall: result : " + JSON.stringify(result));
 
@@ -334,7 +363,7 @@ export const handleConnection = async (conn, req) => {
                     }
                     if (obj.mt == "RetrieveCall") {
                         
-                        let result = await retrieveCall(conn.guid, obj.btn_id)
+                        let result = await retrieveCall(conn.guid, obj.btn_id, obj.device, obj.call)
                         
                         log("webSocketController:RetrieveCall: result : " + JSON.stringify(result));
 
@@ -356,7 +385,7 @@ export const handleConnection = async (conn, req) => {
                     }
                     if (obj.mt == "RedirectCall") {
                         
-                        let result = await redirectCall(conn.guid, obj.btn_id, obj.destination)
+                        let result = await redirectCall(conn.guid, obj.btn_id, obj.destination, obj.device, obj.call)
                         
                         log("webSocketController:RedirectCall: result : " + JSON.stringify(result));
 
@@ -378,7 +407,7 @@ export const handleConnection = async (conn, req) => {
                     }
                     if (obj.mt == "SendDtfmDigits") {
                         
-                        let result = await dtmfCall(conn.guid, obj.btn_id, obj.digit)
+                        let result = await dtmfCall(conn.guid, obj.btn_id, obj.digit, obj.device, obj.call)
                         
                         log("webSocketController:SendDtfmDigits: result : " + JSON.stringify(result));
 
@@ -400,7 +429,7 @@ export const handleConnection = async (conn, req) => {
                     }
                     if (obj.mt == "EndCall") {
 
-                        let result = await clearCall(conn.guid, obj.btn_id)
+                        let result = await clearCall(conn.guid, obj.btn_id, obj.device, obj.call)
 
                         conn.send(JSON.stringify({ api: "user", mt: "EndCallResult", result: result }));
                         return;
@@ -414,9 +443,10 @@ export const handleConnection = async (conn, req) => {
                     }
                     if (obj.mt == "TriggerStartOpt") { //Chamado quando usuário ativa uma Opt
                         //intert into DB the event
-                        var msg = { guid: conn.guid, name: "opt", date: getDateNow(), status: "open", details: obj.btn_id }
+                        var msg = { guid: conn.guid, from:conn.guid, name: "opt", date: getDateNow(), status: "open", prt: obj.prt, details: obj.btn_id }
                         log("webSocketController:TriggerStartOpt: will insert it on DB : " + JSON.stringify(msg));
                         var result = await db.activity.create(msg)
+                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [result] });
                         conn.send(JSON.stringify({ api: "user", mt: "TriggerStartOptResult", src: result }));
                     }
                     if (obj.mt == "TriggerCombo") {
@@ -425,9 +455,10 @@ export const handleConnection = async (conn, req) => {
                         //intert into DB the event
                         log("webSocketController:: insert into DB = user " + conn.guid);
     
-                        var msg = { guid: conn.guid, name: "combo", date: today, status: "start", details: obj.prt }
+                        var msg = { guid: conn.guid, from: conn.guid, name: "combo", date: today, status: "start", prt: obj.prt, details: obj.btn_id }
                         var resultInsert = await db.activity.create(msg)
                         conn.send(JSON.stringify(result));
+                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                         log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                         //insertTblActivities(msg);
                     }
@@ -437,10 +468,10 @@ export const handleConnection = async (conn, req) => {
                         //intert into DB the event
                         log("webSocketController:: insert into DB = user " + conn.guid);
     
-                        var msg = { guid: conn.guid, name: "combo", date: today, status: "stop", details: obj.prt }
+                        var msg = { guid: conn.guid, from: conn.guid, name: "combo", date: today, status: "stop", prt: obj.prt, details: obj.btn_id }
                         log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                         var resultInsert = await db.activity.create(msg)
-                        //insertTblActivities(msg);
+                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                         //respond success to the client
                         conn.send(JSON.stringify({ api: "user", mt: "ComboSuccessTrigged", src: obj.prt, btn_id: String(obj.btn_id) }));
                     }
@@ -449,7 +480,7 @@ export const handleConnection = async (conn, req) => {
                         break;
                     }
                     if (obj.mt == "TriggerAlarm") { //Chamado quando o usuário pressiona um Botão de alarme na tela
-                        const TriggerAlarmResult = await TriggerAlarm(conn.guid, obj.prt, obj.btn_id)
+                        const TriggerAlarmResult = await triggerAlarm(conn.guid, obj.prt, obj.btn_id)
                         
                         //trigger the HTTP server
                         const urlEnable = await db.config.findOne({where:{
@@ -469,13 +500,14 @@ export const handleConnection = async (conn, req) => {
                         }})
                         
                         //intert into DB the event
-                        var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "out", details: btn.button_name, prt: obj.prt }
+                        var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "out", details: btn.id, prt: obj.prt }
                         log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                         const resultInsert = await db.activity.create(msg)
+                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                         conn.send(JSON.stringify({ api: "user", mt: "TriggerAlarmResult", result: TriggerAlarmResult, src: resultInsert }));
                     }
                     if (obj.mt == "TriggerStopAlarm") { //Chamado quando o usuário pressiona um Botão de alarme na tela
-                        const TriggerStopAlarmResult = await TriggerStopAlarm(conn.guid, obj.prt)
+                        const TriggerStopAlarmResult = await triggerStopAlarm(conn.guid, obj.prt)
                         
                         //trigger the HTTP server
                         const urlEnable = await db.config.findOne({where:{
@@ -495,9 +527,11 @@ export const handleConnection = async (conn, req) => {
                         }})
 
                         //intert into DB the event
-                        var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "stop", details: btn.button_name, prt: obj.prt }
+                        var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "stop", details: btn.id, prt: obj.prt }
                         log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                         const resultInsert = await db.activity.create(msg)
+                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+           
                         conn.send(JSON.stringify({ api: "user", mt: "TriggerStopAlarmResult", result: TriggerStopAlarmResult, btn_id: obj.btn_id, src: resultInsert }));
                     }
                     //#endregion
@@ -579,11 +613,11 @@ export const handleConnection = async (conn, req) => {
                         //intert into DB the event
                         log("webSocketController:TriggerCommand insert into DB = user " + conn.dn);
 
-                        var msg = { guid: conn.guid, from: conn.guid, name: "command", date: getDateNow(), status: "out", details: btn.button_name, prt: btn.button_prt }
+                        var msg = { guid: conn.guid, from: conn.guid, name: "command", date: getDateNow(), status: "out", details: btn.id, prt: btn.button_prt }
                         log("webSocketController:TriggerCommand will insert it on DB : " + JSON.stringify(msg));
                         const resultInsert = await db.activity.create(msg)
                         log("webSocketController:TriggerCommand inserted it on DB result id: " + JSON.stringify(resultInsert.id));
-
+                        send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                     }
                     //#endregion
                     break;
@@ -661,6 +695,57 @@ export const handleConnection = async (conn, req) => {
                             conn.send(JSON.stringify({ api: "admin", mt: "DelConnUserResult", result: false }));
                         }
                         
+                    }
+                    if (obj.mt == "UpdateConfigBackupSchedule") {
+                        const backupFields = {
+                            "backupUsername": obj.backupUsername,
+                            "backupPassword": obj.backupPassword,
+                            "backupFrequency": obj.backupFrequency,
+                            "backupDay": obj.backupDay,
+                            "backupHour": obj.backupHour,
+                            "backupHost": obj.backupHost,
+                            "backupPath": obj.backupPath,
+                            "backupMethod": obj.backupMethod,
+                          };
+                        
+                          try {
+                            for (const [entry, value] of Object.entries(backupFields)) {
+                              // Atualizar ou criar se não existir
+                              await db.config.update({ value }, {
+                                where: { entry }
+                              });
+                            }
+                            log('webSocketController:UpdateConfigBackupSchedule: Backup config atualizado com sucesso!');
+                          } catch (error) {
+                            log('webSocketController:UpdateConfigBackupSchedule: Erro ao atualizar backup config:'+ error);
+                          }
+
+                        const updateConfigResult = await db.config.findAll();
+                        conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigBackupScheduleSuccess", result: updateConfigResult }));
+                    }
+                    if (obj.mt == "UpdateConfigSmtp") {
+                        const backupFields = {
+                            "smtpUsername": obj.smtpUsername,
+                            "smtpPassword": obj.smtpPassword,
+                            "smtpHost": obj.smtpHost,
+                            "smtpPort": obj.smtpPort,
+                            "smtpSecure": obj.smtpSecure,
+                          };
+                        
+                          try {
+                            for (const [entry, value] of Object.entries(backupFields)) {
+                              // Atualizar ou criar se não existir
+                              await db.config.update({ value }, {
+                                where: { entry }
+                              });
+                            }
+                            log('webSocketController:UpdateConfigSmtp: config atualizado com sucesso!');
+                          } catch (error) {
+                            log('webSocketController:UpdateConfigSmtp: Erro ao atualizar config:'+ error);
+                          }
+
+                        const updateConfigResult = await db.config.findAll();
+                        conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSmtpSuccess", result: updateConfigResult }));
                     }
                     //#endregion
                     //#region LICENSE
