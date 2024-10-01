@@ -672,6 +672,7 @@ export const callEvents = async (obj) =>{
                         }
                     })
                     if(btn){
+                        obj.num = btn.button_prt;
                         //send(user.guid, {api: "user", mt: "CallDisconnected", btn_id: btn.id})
                         //broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
                     }
@@ -681,8 +682,8 @@ export const callEvents = async (obj) =>{
                 const call = await db.call.findOne({
                     where: {
                       guid: user.guid,
-                      number: obj.num,
                       device: obj.device,
+                      number: obj.num,
                       status: 1
                     },
                     order: [
@@ -717,6 +718,7 @@ export const callEvents = async (obj) =>{
                         }
                     })
                     if(btn){
+                        obj.num = btn.button_prt;
                         send(user.guid, {api: "user", mt: "CallDisconnected", btn_id: btn.id, device: obj.device})
                         broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
                     }
@@ -724,7 +726,7 @@ export const callEvents = async (obj) =>{
                     const call = await db.call.findOne({
                         where: {
                           guid: user.guid,
-                          number: btn.button_prt,
+                          number: obj.num,
                           call_innovaphone: obj.call,
                           device: obj.device,
                           status: 1
@@ -790,6 +792,7 @@ export const callEvents = async (obj) =>{
                         }
                     })
                     if(btn){
+                        obj.num = btn.button_prt;
                         send(user.guid, {api: "user", mt: "CallRinging", btn_id: btn.id, device: obj.device})
                         broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
                     }
@@ -891,6 +894,7 @@ export const callEvents = async (obj) =>{
                         }
                     })
                     if(btn){
+                        obj.num = btn.button_prt;
                         send(user.guid, {api: "user", mt: "CallConnected", btn_id: btn.id, device: obj.device})
                         broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "busy", color: "busy" })
                     }

@@ -84,7 +84,7 @@ router.post('/sensorTriggered', async (req, res) => {
         //const { model } = req.params;
 
         const body = req.body;
-        log('webServerMilesightRoutes:sensorTriggered: body ' + JSON.stringify(body))
+        //log('webServerMilesightRoutes:sensorTriggered: body ' + JSON.stringify(body))
         log('webServerMilesightRoutes:sensorTriggered: From ' + JSON.stringify(body.deviceName))
         const model = await returnModelByEUI(body.devEUI || '');
         log('webServerMilesightRoutes:sensorTriggered: model ' + model)

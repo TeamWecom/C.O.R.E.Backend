@@ -721,7 +721,7 @@ export const handleConnection = async (conn, req) => {
                           }
 
                         const updateConfigResult = await db.config.findAll();
-                        conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigBackupScheduleSuccess", result: updateConfigResult }));
+                        conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: updateConfigResult }));
                     }
                     if (obj.mt == "UpdateConfigSmtp") {
                         const backupFields = {
@@ -745,7 +745,7 @@ export const handleConnection = async (conn, req) => {
                           }
 
                         const updateConfigResult = await db.config.findAll();
-                        conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSmtpSuccess", result: updateConfigResult }));
+                        conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: updateConfigResult }));
                     }
                     //#endregion
                     //#region LICENSE

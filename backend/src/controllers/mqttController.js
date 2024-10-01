@@ -9,7 +9,7 @@ export const handlePublish = async (packet, client) => {
         log(`mqttController:handlePublish: Mensagem recebida do cliente ${client.id}: ${obj.values.devName}`);
         
         const result = await receiveImage(obj);
-        log(`mqttController:handlePublish: Mensagem recebida do cliente ${obj.values.devName}: result lenght ${result.lenght}`);
+        log(`mqttController:handlePublish: Mensagem recebida do cliente ${obj.values.devName} tratada`);
     } else {
         log(`mqttController:handlePublish: Mensagem publicada no broker: ${packet.payload.toString()}`);
     }

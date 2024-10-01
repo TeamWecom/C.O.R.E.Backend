@@ -3,7 +3,6 @@ sudo apt-get install -y whiptail
 
 # Caminhos
 PROJECT_DIR="./"
-ENV_FILE="$PROJECT_DIR.env"
 DEST_DIR="/mnt/core"
 
 # Função para capturar erros
@@ -26,9 +25,6 @@ prompt_info_num_servidores() {
   fi
 
   if [ "$NUM_SERVIDORES" -eq 1 ]; then
-    # Escreve no arquivo .env
-    echo "Escrevendo dados no arquivo .env..."
-    echo "NUM_SERVIDORES=$NUM_SERVIDORES" > $ENV_FILE
     install_localy
   elif [ "$NUM_SERVIDORES" -gt 1 ]; then
     # Escreve no arquivo .env
@@ -74,6 +70,10 @@ install_localy() {
 
 # Função para instalar NVM, Node.js, PM2, NGINX, PostgreSQL e configurar NGINX
 install_apps() {
+    # Escreve no arquivo .env
+    echo "Escrevendo dados no arquivo .env do backend..."
+    ENV_FILE_BACK="./Backend/backend/src/.env"
+    echo "NUM_SERVIDORES=$NUM_SERVIDORES" > $ENV_FILE_BACK
     # Coletar o nome do servidor : core.wecom.com.br
     HOST=$(whiptail --inputbox "Informe o nome do servidor:" 8 39 --title "Nome do servidor" 3>&1 1>&2 2>&3)
 
@@ -188,8 +188,7 @@ install_apps() {
                     proxy_set_header X-Forwarded-Proto \$scheme;
                 }
             }
-        }
-        EOF"
+        }"
 
     # Reiniciar o NGINX
     whiptail --infobox "Reiniciando NGINX..." 8 39
@@ -216,7 +215,7 @@ install_apps() {
 
     # Iniciar o serviço com PM2
     whiptail --infobox "Iniciando o serviço core-service com PM2..." 8 39
-    cd ./backend/src/
+    cd ./Backend/backend/src/
     npm install
     pm2 start core-service.js --name "core-service"
     #SALVA OS SERVIÇOS PM2 PARA PERSISTIR APÓS RESTART
@@ -226,6 +225,14 @@ install_apps() {
 
 
 install_front() {
+    # Escreve no arquivo .env
+    echo "Escrevendo dados no arquivo .env do front..."
+     ENV_FILE_FRONT="./Frontend/vite-project/.env"
+    echo "Escrevendo dados no arquivo .env front..."
+    echo "VITE_HOSTNAME=$HOST" > $ENV_FILE_FRONT
+    echo "SSL_CERT=$SSL_CERT" > $ENV_FILE_FRONT
+    echo "SSL_CERT=$SSL_KEY" > $ENV_FILE_FRONT
+
     cd ./Frontend/vite-project/
 
     npm install

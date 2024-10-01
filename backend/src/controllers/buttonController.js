@@ -130,7 +130,6 @@ export const rccMonitorEnd = async (guid) => {
         return e
     }  
 }
-
 export const connectCall = async (guid, device, call) => {
     try{
         let pbxType = await db.config.findOne({
@@ -223,7 +222,6 @@ export const clearIncomingCall = async (guid, device, num) => {
         return e
     }  
 }
-
 export const makeCall = async (guid, btn_id, device, num) => {
     try{
         let pbxType = await db.config.findOne({
@@ -311,7 +309,6 @@ export const makeCall = async (guid, btn_id, device, num) => {
         return e
     }  
 }
-
 export const heldCall = async (guid, btn_id, device, call) => {
     try{
         let pbxType = await db.config.findOne({
