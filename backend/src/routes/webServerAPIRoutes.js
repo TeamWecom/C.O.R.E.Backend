@@ -72,7 +72,7 @@ router.post('/verifyToken', async (req, res) => {
         const result = await validateToken(req.body.token);
         res.status(200).send(result);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(401).json({ error: e.message });
     }
 });
 

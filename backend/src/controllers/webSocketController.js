@@ -85,8 +85,8 @@ export const handleConnection = async (conn, req) => {
             }
         })
         .catch(function (result) {
-            log("webSocketController: Token JWT inválido: ", result);
-            conn.close();
+            log("webSocketController: Token JWT inválido: "+ result);
+            conn.close(401);
         });
 
     conn.on('message', async message => {

@@ -42,7 +42,7 @@
 
           ws.onclose = (event) => {
               document.querySelector('#send').disabled = true;
-              console.log('WebSocket connection closed:', event.code, event.reason);
+              console.log(`WebSocket connection closed:${new Date()}`, event.code, event.reason);
               timer = setTimeout(connect, 10000); // Tenta reconectar após 60 segundos
           };
 

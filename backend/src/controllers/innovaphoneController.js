@@ -701,7 +701,7 @@ export const callEvents = async (obj) =>{
                     );
                     log("innovaphoneController:callEvents:CallRecordId:callToUpdateResult "+callToUpdateResult)
                     if(obj.btn_id && obj.btn_id !=""){
-                        send(user.guid, {api: "user", mt: "CallConnecting", btn_id: btn.id, device: obj.device})
+                        send(user.guid, {api: "user", mt: "CallConnecting", btn_id: obj.btn_id, device: obj.device})
                     }else{
                         send(user.guid, {api: "user", mt: "CallConnecting", call: obj.call, device: obj.device})
                     }
