@@ -29,7 +29,7 @@ prompt_info_num_servidores() {
   elif [ "$NUM_SERVIDORES" -gt 1 ]; then
     # Escreve no arquivo .env
     echo "Escrevendo dados no arquivo .env..."
-    echo "NUM_SERVIDORES=$NUM_SERVIDORES" > $ENV_FILE
+    echo "NUM_SERVIDORES=$NUM_SERVIDORES" >> $ENV_FILE
     prompt_info
   fi
 }
@@ -73,7 +73,7 @@ install_apps() {
     # Escreve no arquivo .env
     echo "Escrevendo dados no arquivo .env do backend..."
     ENV_FILE_BACK="./Backend/backend/src/.env"
-    echo "NUM_SERVIDORES=$NUM_SERVIDORES" > $ENV_FILE_BACK
+    echo "NUM_SERVIDORES=$NUM_SERVIDORES" >> $ENV_FILE_BACK
     # Coletar o nome do servidor : core.wecom.com.br
     HOST=$(whiptail --inputbox "Informe o nome do servidor:" 8 39 --title "Nome do servidor" 3>&1 1>&2 2>&3)
 
@@ -229,9 +229,9 @@ install_front() {
     echo "Escrevendo dados no arquivo .env do front..."
      ENV_FILE_FRONT="./Frontend/vite-project/.env"
     echo "Escrevendo dados no arquivo .env front..."
-    echo "VITE_HOSTNAME=$HOST" > $ENV_FILE_FRONT
-    echo "SSL_CERT=$SSL_CERT" > $ENV_FILE_FRONT
-    echo "SSL_CERT=$SSL_KEY" > $ENV_FILE_FRONT
+    echo "VITE_HOSTNAME=$HOST" >> $ENV_FILE_FRONT
+    echo "SSL_CERT=$SSL_CERT" >> $ENV_FILE_FRONT
+    echo "SSL_CERT=$SSL_KEY" >> $ENV_FILE_FRONT
 
     cd ./Frontend/vite-project/
 

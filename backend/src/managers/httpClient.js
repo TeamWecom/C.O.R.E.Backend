@@ -11,7 +11,7 @@ const axiosInstance = axios.create({
 
 export const sendHttpGetRequest = async (endpoint, customHeaders) => {
     try {
-        const response = await axiosInstance.get(endpoint, { headers: JSON.parse(customHeaders) });
+        const response = await axiosInstance.get(endpoint, { headers: JSON.parse(customHeaders), timeout: 20000 });
         log(`GET request to ${endpoint} successful:`);
         return response;
     } catch (error) {
@@ -23,7 +23,7 @@ export const sendHttpGetRequest = async (endpoint, customHeaders) => {
 export const sendHttpPostRequest = async (endpoint, data, customHeaders) => {
     try {
         log(`POST request to ${endpoint} data:`, data);
-        const response = await axiosInstance.post(endpoint, data, { headers: JSON.parse(customHeaders) });
+        const response = await axiosInstance.post(endpoint, data, { headers: JSON.parse(customHeaders), timeout: 20000});
         log(`POST request to ${endpoint} successful:`);
         return response;
     } catch (error) {
@@ -34,7 +34,7 @@ export const sendHttpPostRequest = async (endpoint, data, customHeaders) => {
 
 export const sendHttpPutRequest = async (endpoint, data, customHeaders) =>{
     try {
-        const response = await axios.put(endpoint, data, { headers: JSON.parse(customHeaders) });
+        const response = await axios.put(endpoint, data, { headers: JSON.parse(customHeaders), timeout: 20000 });
         log(`PUT request to ${endpoint} successful:`);
         return response;
     } catch (error) {
@@ -44,7 +44,7 @@ export const sendHttpPutRequest = async (endpoint, data, customHeaders) =>{
 
 export const sendHttpDeleteRequest = async (endpoint, customHeaders) =>{
     try {
-        const response = await axios.delete(endpoint, { headers: JSON.parse(customHeaders) });
+        const response = await axios.delete(endpoint, { headers: JSON.parse(customHeaders), timeout: 20000 });
         log(`DELETE request to ${endpoint} successful:`);
         return response;
     } catch (error) {
