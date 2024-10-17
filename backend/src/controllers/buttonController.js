@@ -927,15 +927,17 @@ export const triggerStopAlarm = async (guid, prt) => {
     let triggerStopAlarmResult = 0;
 
     try{
+
+        //Alarmes
         const btns = await db.button.findAll({
             where: {
                 button_prt: prt,
                 button_type: 'alarm'
             }
         })
-        log('buttonController:TriggerStopAlarm: btns '+ JSON.stringify(btns))
+        log('buttonController:TriggerStopAlarm: alarm btns '+ JSON.stringify(btns))
         btns.forEach(async (b)=>{
-            log('buttonController:TriggerStopAlarm: btn '+ JSON.stringify(b))
+            log('buttonController:TriggerStopAlarm: alarm btn '+ JSON.stringify(b))
 
             const sendResult = await send(b.button_user, { api: "user", mt: "AlarmStopReceived", alarm: b.button_prt, btn_id: b.id })
             if(sendResult){triggerStopAlarmResult +=1}
@@ -947,7 +949,29 @@ export const triggerStopAlarm = async (guid, prt) => {
             send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
            
         })
+        //Sensores
+        const btnsSensor = await db.button.findAll({
+            where: {
+                sensor_type: prt,
+                button_type: 'sensor'
+            }
+        })
+        log('buttonController:TriggerStopAlarm: sensor btns '+ JSON.stringify(btnsSensor))
+        btnsSensor.forEach(async (b)=>{
+            log('buttonController:TriggerStopAlarm: sensor btn '+ JSON.stringify(b))
 
+            const sendResult = await send(b.button_user, { api: "user", mt: "AlarmStopReceived", alarm: b.sensor_type, btn_id: b.id })
+            if(sendResult){triggerStopAlarmResult +=1}
+
+            //intert into DB the event
+            var msg = { guid: b.button_user, from: guid, name: "alarm", date: getDateNow(), status: "stop", details: b.id, prt: prt }
+            log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
+            const resultInsert = await db.activity.create(msg)
+            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+           
+        })
+
+        //Active alarms
         let result = await db.activeAlarms.destroy({
             where: {
               prt: prt,
@@ -960,7 +984,6 @@ export const triggerStopAlarm = async (guid, prt) => {
     }
 
 }
-
 
 export const selectButtons = async (guid) => {
     log("buttonController::SelectButtons " + guid)
@@ -1089,6 +1112,73 @@ export const thresholdManager = async (obj) => {
     }catch(e){
         log(`buttonController:thresholdManager: Error ${e}`)
     }
+}
+export const makeConference = async (guid, btn_id, calls) => {
+    try{
+        let pbxType = await db.config.findOne({
+            where:{
+                entry: 'pbxType'
+            }
+            
+        })
+        const user = await db.user.findOne({
+            where: {
+                guid: guid
+            }
+        })
+        if(btn_id){
+            const btn = await db.button.findOne({
+                where: {
+                    id: btn_id
+                }
+            })
+
+            let localCalls = await db.call.findAll({
+                where:{
+                    guid: guid,
+                    status: 1,
+                    call_innovaphone: calls.map(c => c)  // Busca por todos os botões
+                }
+            });
+            localCalls.forEach(async call => {
+                log("buttonController:makeConference:redirectCall: call.id " + call.id);
+
+                if(pbxType.value == 'INNOVAPHONE'){
+                
+                    await innovaphoneRedirectCall(null, user, btn.button_prt, call.device, call.call_innovaphone)
+                }
+                if(pbxType.valuel == 'EPYGI'){                                    
+                }
+            })
+            
+
+            let inConferenceCall = await db.call.findOne({
+                where:{
+                    guid: guid,
+                    btn_id: btn_id,
+                    status: 1,
+                    call_ended: null
+                }
+            });
+            if(inConferenceCall){
+                // Já estou na chamada, apenas transferir a chamada para a conferencia
+                log("buttonController:makeConference: finished redirects, I'm already at the conference " + btn.button_prt);
+                    
+            }else{
+                //Ainda não estou nessa chamada, transferir e ligar
+                log("buttonController:makeConference: finished redirects, now I will dial to the conference " + btn.button_prt);
+                const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                await delay(5000); // Atraso de 5 segundos
+                return await makeCall(guid, btn_id, btn.button_device, btn.button_prt)
+                
+            }
+            
+            
+        }
+    }catch(e){
+        log("buttonController:makeConference: error " + e)
+        return e
+    }  
 }
 
 function verificarThresholds(data, buttons) {

@@ -221,5 +221,5 @@ mqttRoutes(broker);
 //#endregion
 
 //Rota da Alexa
-app.use('/api', AlexaRouter);
+app.use('/api/alexa', AlexaRouter);
 checkBackupRoutine();

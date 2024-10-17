@@ -6,7 +6,7 @@ import path from 'path';
 import url from 'url';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { presenceSubscription, callEvents, convertRecordingPcapToWav, propfind } from '../controllers/innovaphoneController.js'
+import { presenceSubscription, callEvents, userEvents, convertRecordingPcapToWav, propfind } from '../controllers/innovaphoneController.js'
 import fs from 'fs';
 
 const router = express.Router();
@@ -45,6 +45,18 @@ router.post('/callEvents', async (req, res) => {
         const body = req.body;
         log("webServerInnovaphoneRoutes /innovaphone/callEvents: " + JSON.stringify(body))
         callEvents(body)
+        res.status(200).send();
+    } catch (e) {
+        res.status(500).send(e);
+    }
+});
+
+//Rota para receber eventos de registro dos terminais dos usuários
+router.post('/userEvents', async (req, res) => {
+    try {
+        const body = req.body;
+        log("webServerInnovaphoneRoutes /innovaphone/userEvents: " + JSON.stringify(body))
+        userEvents(body)
         res.status(200).send();
     } catch (e) {
         res.status(500).send(e);

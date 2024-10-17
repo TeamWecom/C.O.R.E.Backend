@@ -17,6 +17,7 @@ import { dirname } from 'path';
 import { generatePDF, generateExcel } from '../utils/generateReportFile.js';
 import fs from 'fs';
 import { backupDatabase, compressAndDownloadFiles } from '../utils/dbMaintenance.js';
+import {convertVideo, convertTsToMp4} from '../utils/videoConverter.js';
 
 
 const router = express.Router();
@@ -36,15 +37,17 @@ const storage = multer.diskStorage({
         cb(null, file.originalname);
     }
 });
-
+//#region Upload de Arquivos
 const upload = multer({ limits: { fileSize: 100 * 1024 * 1024 }, storage: storage });
 
 // Rota para upload de arquivos
 router.post('/uploadFiles', upload.single('file'), async (req, res) => {
     try {
         const xAuthHeader = req.headers['x-auth'];
-        const result = await uploadFile(req.file, xAuthHeader, req.protocol, req.get('host'));
-        res.status(200).json({ fileUrl: result.fileUrl });
+        const uploadedFile = req.file;
+        const result = await uploadFile(uploadedFile, xAuthHeader, req.protocol, req.get('host'));
+        log('webServerAPIRoutes:/uploadFiles: File Uploaded! '+uploadedFile.filename);
+        res.status(200).json({ fileUrl: result.fileUrl, fileName: uploadedFile.filename, });
     } catch (error) {
         if (error.message === 'No file uploaded') {
             res.status(400).json({ error: error.message });
@@ -55,6 +58,9 @@ router.post('/uploadFiles', upload.single('file'), async (req, res) => {
         }
     }
 });
+//#endregion
+
+//#region Gestão de Contas e Autenticação
 
 // Rota para criar usuário
 router.post('/create', async (req, res) => {
@@ -125,7 +131,6 @@ router.post('/updatePassword', async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
-
 // Rota para resetar senha do usuário
 router.post('/resetPassword', async (req, res) => {
     try {
@@ -135,7 +140,6 @@ router.post('/resetPassword', async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
-
 // Rota para renovar o token
 router.get('/renewToken', async (req, res) => {
     try {
@@ -145,13 +149,16 @@ router.get('/renewToken', async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+//#endregion
 
+//#region Redefinição de Senha
 // Route for requesting password reset
 router.post('/request-password-reset', requestPasswordReset);
-
 // Route for handling password reset (token validation + new password submission)
 router.post('/reset-password', resetPassword);
+//#endregion
 
+//#region Gerar Relatórios
 router.post('/generatePdf', async (req, res) => {
     try{
         const token = req.headers['x-auth'] || '';
@@ -160,7 +167,8 @@ router.post('/generatePdf', async (req, res) => {
 
         if (!user) {
             log("webServerAPIRoutes:generatePdf: ID no Token JWT inválido");
-            throw new Error('Token de autenticação inválido');
+            res.status(401).send('Token de autenticação inválido');
+            return;
         }
 
         const body = req.body;
@@ -199,7 +207,8 @@ router.post('/generateExcel', async (req, res) => {
 
         if (!user) {
             log("webServerAPIRoutes:generatePdf: ID no Token JWT inválido");
-            throw new Error('Token de autenticação inválido');
+            res.status(401).send('Token de autenticação inválido');
+            return;
         }
 
         const body = req.body;
@@ -226,7 +235,9 @@ router.post('/generateExcel', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+//#endregion
 
+//#region Backup
 router.get('/backupDataBase', async (req, res) => {
     try{
 
@@ -236,7 +247,8 @@ router.get('/backupDataBase', async (req, res) => {
 
         if (!user) {
             log("webServerAPIRoutes:backupDataBase: ID no Token JWT inválido");
-            throw new Error('Token de autenticação inválido');
+            res.status(401).send('Token de autenticação inválido');
+            return;
         }
 
         const {backupFile, fileName, backupDir} = await backupDatabase();
@@ -274,7 +286,8 @@ router.post('/backupFiles', async (req, res) => {
 
         if (!user) {
             log("webServerAPIRoutes:backupFiles: ID no Token JWT inválido");
-            throw new Error('Token de autenticação inválido');
+            res.status(401).send('Token de autenticação inválido');
+            return;
         }
         const body = req.body;
         const {backupFile, fileName, backupDir} = await compressAndDownloadFiles(body.from);
@@ -305,4 +318,52 @@ router.post('/backupFiles', async (req, res) => {
         res.status(500).json({error: e.message});
     }
 })
+//#endregion
+
+//#region Converter Video para mp4
+// Rota que inicia a conversão e fornece o link de download
+router.get('/convert/:fileName', async (req, res) => {
+    try{
+
+        const token = req.headers['x-auth'] || '';
+        const decoded = await validateToken(token);
+        const user = await db.user.findOne({ where: { id: decoded.id } });
+
+        if (!user) {
+            log("webServerAPIRoutes:convert: ID no Token JWT inválido");
+            res.status(401).send('Token de autenticação inválido');
+            return;
+        }
+        const { fileName } = req.params;
+        log('webServerAPIRoutes:/convert: Request Conversion Start!');
+        //const {inputFilePath, newFileName, outputFilePath} = await convertVideo(fileName);
+        const { inputFilePath, newFileName, outputFilePath } = await convertTsToMp4(fileName);
+        log('webServerAPIRoutes:/convert: continuando');
+        log('webServerAPIRoutes:/convert: inputFilePath: '+inputFilePath);
+        log('webServerAPIRoutes:/convert: newFileName: '+newFileName);
+        log('webServerAPIRoutes:/convert: outputFilePath: '+outputFilePath);
+        // Forçar o download do arquivo
+        res.download(outputFilePath, newFileName, (err) => {
+            if (err) {
+            log('webServerAPIRoutes:/convert: Erro ao fazer download do Arquivo: '+err);
+            res.status(500).send('Erro ao fazer download do Arquivo');
+            }else{
+                log('webServerAPIRoutes:/convert: download do Arquivo OK!');
+            }
+    
+            // Após o download, você pode excluir o arquivo temporário
+            // fs.unlink(inputFilePath, (unlinkErr) => {
+            //     if (unlinkErr) log('webServerAPIRoutes:/convert: Erro ao remover arquivo temporário input:'+unlinkErr);;
+            // });
+            // fs.unlink(outputFilePath, (unlinkErr) => {
+            //     if (unlinkErr) log('webServerAPIRoutes:/convert: Erro ao remover arquivo temporário output:'+unlinkErr);;
+            // });
+        });
+
+    } catch (e) {
+        res.status(500).json({error: e.message});
+    }
+})
+//#endregion
+
 export default router;

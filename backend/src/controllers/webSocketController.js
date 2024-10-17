@@ -6,7 +6,8 @@ import db from '../managers/databaseSequelize.js';
 import { QueryTypes, Op } from 'sequelize';
 import { log } from '../utils/log.js';
 import {addGateway, getDevices, TriggerCommand} from '../controllers/milesightController.js'
-import { makeCall, 
+import { makeConference,
+    makeCall, 
     heldCall, 
     retrieveCall, 
     clearCall, 
@@ -60,7 +61,7 @@ export const handleConnection = async (conn, req) => {
                 const license = await licenseFileWithUsage();
                 if (license.online.used >= license.online.total){
                     log("webSocketController:handleConnection: Limite de usuáros online atingido, contratar nova licença");
-                    conn.close(1010);
+                    conn.close(4010);
                     return;
                 }
             }
@@ -86,7 +87,7 @@ export const handleConnection = async (conn, req) => {
         })
         .catch(function (result) {
             log("webSocketController: Token JWT inválido: "+ result);
-            conn.close(401);
+            conn.close(4401);
         });
 
     conn.on('message', async message => {
@@ -243,6 +244,13 @@ export const handleConnection = async (conn, req) => {
                         const configResult = await db.config.findAll();
                         conn.send(JSON.stringify({ api: "user", mt: "ConfigResult", result: configResult }));
 
+                        const preference = await db.preference.findAll({
+                            where: {
+                                guid: conn.guid
+                            }
+                        })
+                        conn.send(JSON.stringify({ api: "user", mt: "SelectUserPreferencesResult", result: preference }))
+
                         const connectionsUser = await getConnections()
                         connectionsUser.forEach(c =>{
                             conn.send(JSON.stringify({api: "user", mt: "CoreUserOnline", guid: c.guid }));
@@ -296,6 +304,16 @@ export const handleConnection = async (conn, req) => {
                         conn.send(JSON.stringify({ api: "user", mt: "getHistoryResult", src: obj.src, result: history }));
                     }
                     //#endregion
+                    //#region PÁGINAS
+                    if(obj.mt == "SelectUserPreferences"){
+                        const data = await db.preference.findAll({
+                            where: {
+                                guid: conn.guid
+                            }
+                        })
+                        conn.send(JSON.stringify({ api: "user", mt: "SelectUserPreferencesResult", result: data }))
+                    }
+                    //#endregion
                     //#region BOTÕES
                     if (obj.mt == "UpdateButton") {
                         const objToUpdate = {
@@ -324,6 +342,17 @@ export const handleConnection = async (conn, req) => {
                         log("webSocketController:TriggerCall: result : " + JSON.stringify(result));
 
                         conn.send(JSON.stringify({ api: "user", mt: "TriggerCallResult", result: result }));
+
+                        return;
+                        
+                    }
+                    if (obj.mt == "TriggerConference") {
+                        
+                        let result = await makeConference(conn.guid, obj.btn_id, obj.calls)
+                        
+                        log("webSocketController:TriggerConference: result : " + JSON.stringify(result));
+
+                        conn.send(JSON.stringify({ api: "user", mt: "TriggerConferenceResult", result: result }));
 
                         return;
                         
@@ -650,6 +679,38 @@ export const handleConnection = async (conn, req) => {
                     if(obj.mt == "RestartService"){
                         restartService('core-service');
                     }
+                    //#endregion
+                    //#region PÁGINAS 
+                    if(obj.mt == "SelectUserPreferences"){
+                        const data = await db.preference.findAll({
+                            where: {
+                                guid: obj.guid
+                            }
+                        })
+                        conn.send(JSON.stringify({ api: "admin", mt: "SelectUserPreferencesResult", result: data }))
+                    }
+                    if (obj.mt == "SetPageName") {
+                        const pageKey = `page${obj.pageNumber}`;
+                        const data = await db.preference.update(
+                            { 
+                                [pageKey]: String(obj.pageName)
+
+                            },
+                            { 
+                                where: { 
+                                    guid: obj.guid
+                                }
+                            }
+                        );
+
+                        const result = await db.preference.findAll({
+                            where: {
+                                guid: obj.guid
+                            }
+                        })
+                        conn.send(JSON.stringify({ api: "admin", mt: "SelectUserPreferencesResult", result: result }))
+                    }
+
                     //#endregion
                     //#region CONFIG
                     if (obj.mt == "UpdateConfig") {

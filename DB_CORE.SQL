@@ -504,15 +504,58 @@ ALTER SEQUENCE public.tbl_users_id_seq OWNER TO core_user;
 GRANT ALL ON SEQUENCE public.tbl_users_id_seq TO core_user;
 
 
+-- Referencias
+ALTER TABLE public.users
+ADD CONSTRAINT users_guid_unique UNIQUE (guid);
+
+ALTER TABLE public.user_preferences
+ADD CONSTRAINT fk_user_preferences_guid
+FOREIGN KEY (guid)
+REFERENCES public.users (guid)
+ON DELETE CASCADE;
+
+ALTER TABLE public.list_buttons 
+ADD CONSTRAINT fk_list_buttons_guid 
+FOREIGN KEY (button_user) 
+REFERENCES public.users(guid) 
+ON DELETE CASCADE;
+
+ALTER TABLE public.tbl_activities 
+ADD CONSTRAINT fk_tbl_activities_guid 
+FOREIGN KEY (guid) 
+REFERENCES public.users(guid) 
+ON DELETE CASCADE;
+
+ALTER TABLE public.tbl_calls 
+ADD CONSTRAINT fk_tbl_calls_guid 
+FOREIGN KEY (guid) 
+REFERENCES public.users(guid) 
+ON DELETE CASCADE;
+
+ALTER TABLE public.list_actions 
+ADD CONSTRAINT fk_list_actions_guid 
+FOREIGN KEY (create_user) 
+REFERENCES public.users(guid) 
+ON DELETE CASCADE;
+
+
+
 -- Inserção dos dados na tabela 'configs'
 INSERT INTO public.users ("name", email,"password","createdAt","type",guid) VALUES
 ('Administrador', 'admin@wecom.com.br','$2a$15$OFM4/8HzxjsFvzVz57T1ie6CwLWroYkDtSE1v4mttNcx993CU2xCW',to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS'),'admin','6969696969696969696');
 
 
-CREATE TABLE tbl_password_resets (
-    guid text UNIQUE,
-    token text NOT NULL,
-    expiresAt DATE
+CREATE TABLE public.user_preferences (
+	id bigserial NOT NULL,
+	guid text NOT NULL,
+	"createdAt" text NULL,
+	"updatedAt" text NULL,
+	page1 text NULL,
+	page2 text NULL,
+	page3 text NULL,
+	page4 text NULL,
+	page5 text NULL,
+	CONSTRAINT user_preferences_pkey PRIMARY KEY (id)
 );
 
 -- Conceder permissões na tabela 'configs' ao usuário 'core_user'
@@ -543,6 +586,6 @@ GRANT ALL PRIVILEGES ON TABLE public.tbl_calls TO core_user;
 GRANT ALL PRIVILEGES ON TABLE public.tbl_messages TO core_user;
 -- Conceder permissões na tabela 'users' ao usuário 'core_user'
 GRANT ALL PRIVILEGES ON TABLE public.users TO core_user;
--- Conceder permissões na tabela 'tbl_password_resets' ao usuário 'core_user'
-GRANT ALL PRIVILEGES ON TABLE public.tbl_password_resets TO core_user;
+-- Conceder permissões na tabela 'user_preferences' ao usuário 'core_user'
+GRANT ALL PRIVILEGES ON TABLE public.user_preferences TO core_user;
 

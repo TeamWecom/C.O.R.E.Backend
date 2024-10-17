@@ -89,6 +89,13 @@ export const licenseFileWithUsage = async() =>{
         }})
         lic['admin'] = { total: lic['admin'], used: adminsCreated.length || 0 };
     }
+    if (lic['auditor'] !== undefined) {
+        const auditorsCreated = await db.user.findAll({
+            where:{
+                type: 'auditor'
+        }})
+        lic['auditor'] = { total: lic['auditor'], used: auditorsCreated.length || 0 };
+    }
     if (lic['gateway'] !== undefined) {
         const gatewaysCreated = await db.gateway.findAll()
         lic['gateway'] = { total: lic['gateway'], used: gatewaysCreated.length || 0 };

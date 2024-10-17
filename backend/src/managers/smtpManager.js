@@ -31,13 +31,14 @@ log(`smtpManager:sendEmail:configObj ${JSON.stringify(configObj)}`)
     const transporter = nodemailer.createTransport({
         host: configObj.smtpHost,
         port: configObj.smtpPort || 587, // Porta padrão de SMTP é 587
-        secure: configObj.smtpSecure || false, // True para SSL, false para TLS
+        secure: false, // True para SSL, false para TLS
         auth: {
             user: configObj.smtpUsername,
             pass: configObj.smtpPassword
         },
         tls: {
-            ciphers: 'SSLv3'
+            rejectUnauthorized: false, // Evitar rejeitar certificados não autorizados
+            minVersion: 'TLSv1.2' // Garantir que no mínimo TLS 1.2 será usado
         }
     });
     log('SMTPManager:sendEmail: Transporter initialized.');

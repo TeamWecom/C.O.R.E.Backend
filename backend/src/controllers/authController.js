@@ -54,7 +54,7 @@ export const createUser = async (token, userData) => {
     return { result: 'success' };
 };
 
-export const signInUser = async ({ email, password, type }) => {
+export const signInUser = async ({ email, password }) => {
     log('authController:signInUser: Tentativa de Login de ' + email);
     const user = await db.user.findOne({ where: { email } });
 
@@ -68,14 +68,14 @@ export const signInUser = async ({ email, password, type }) => {
         throw new Error('incorrectPassword');
     }
 
-    if (user.type === 'user' && type === 'admin') {
-        log('authController:signInUser: Tipo de Login inválido ' + email);
-        throw new Error('typeNotFound');
-    }
     if(user.email != 'admin@wecom.com.br'){
         const license = await licenseFileWithUsage();
+        if(!license){
+            log("authController:signInUser: Erro na licença instalada: " + JSON.stringify(license));
+            throw new Error('noLicenses');
+        }
         if (license.online.used >= license.online.total){
-            log("authController:signInUser: Limite de usuáros atingido, contratar nova licença: " + type);
+            log("authController:signInUser: Limite de usuáros atingido, contratar nova licença: " + user.type);
             throw new Error('noMoreLicenses');
         }
     }
@@ -218,7 +218,7 @@ export const requestPasswordReset = async (req, res) => {
 
         // Generate a unique password reset token and save it with an expiration time
         const token = await generateResetToken(user.guid);
-        const resetLink = `https://${host}/ui/reset-password?token=${token}`;
+        const resetLink = `https://${host}/reset-password?token=${token}`;
         const body = `<!DOCTYPE html>
 <html lang="en">
 <head>
