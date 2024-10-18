@@ -6,7 +6,7 @@ import path from 'path';
 import url from 'url';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { presenceSubscription, callEvents, userEvents, convertRecordingPcapToWav, propfind } from '../controllers/innovaphoneController.js'
+import { presenceSubscription, callEvents, userEvents, convertRecordingPcapToWav, propfind, restartPassiveRCCMonitor } from '../controllers/innovaphoneController.js'
 import fs from 'fs';
 
 const router = express.Router();
@@ -57,6 +57,17 @@ router.post('/userEvents', async (req, res) => {
         const body = req.body;
         log("webServerInnovaphoneRoutes /innovaphone/userEvents: " + JSON.stringify(body))
         userEvents(body)
+        res.status(200).send();
+    } catch (e) {
+        res.status(500).send(e);
+    }
+});
+
+//Rota para receber requisição de reinicio de monitoramento RCC dos usuários
+router.get('/restartUserMonitor', async (req, res) => {
+    try {
+        log("webServerInnovaphoneRoutes /innovaphone/restartUserMonitor: ")
+        restartPassiveRCCMonitor()
         res.status(200).send();
     } catch (e) {
         res.status(500).send(e);

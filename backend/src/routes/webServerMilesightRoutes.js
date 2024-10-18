@@ -136,7 +136,7 @@ router.post('/sensorTriggered', async (req, res) => {
                 break;
             case 'vs121':
                 decoded = await decodePayloadVS121(body.data);
-                log('webServerAPIRoutes:sensorTriggered: VS121 decoded ' +JSON.stringify(decoded))
+                //log('webServerAPIRoutes:sensorTriggered: VS121 decoded ' +JSON.stringify(decoded))
                 break;
             // Adicione outros cases conforme necessário
             default:

@@ -723,7 +723,6 @@ export const clearCall = async (guid, btn_id, device, call) => {
         return e
     }
 }
-
 export const comboManager = async (combo, guid, mt) => {
     try{
         let result = 0;
@@ -984,7 +983,6 @@ export const triggerStopAlarm = async (guid, prt) => {
     }
 
 }
-
 export const selectButtons = async (guid) => {
     log("buttonController::SelectButtons " + guid)
     let result = await db.button.findAll({
@@ -1001,7 +999,6 @@ export const selectButtons = async (guid) => {
     //Aproveitamos para enviar a lista de status dos controllers que estejam entre os botões desse usuário
     getControllerStatusByGuid(guid, result)
 }
-
 export const getActiveAlarmHistory = async (guid) => {
     let activeAlarms = await db.activeAlarms.findAll();
     log("buttonController::getActiveAlarmHistory result activeAlarms= " + JSON.stringify(activeAlarms, null, 4));
@@ -1030,7 +1027,6 @@ export const getActiveAlarmHistory = async (guid) => {
         send(guid, { api: "user", mt: "AlarmReceived", btn_id: b.id })
     })
 }
-
 export const getControllerStatusByGuid = async (guid, buttons) => {
     const commandButtons = buttons.filter(button => button.button_type === 'command');
     commandButtons.forEach(async function(b){
@@ -1047,7 +1043,6 @@ export const getControllerStatusByGuid = async (guid, buttons) => {
     log("buttonController::getControllerStatusByGuid result= " + commandButtons.length + " controller buttons for user " + guid);
 
 }
-
 export const thresholdManager = async (obj) => {
     try{
         const sensorsButtons = await db.button.findAll({
@@ -1168,7 +1163,7 @@ export const makeConference = async (guid, btn_id, calls) => {
                 //Ainda não estou nessa chamada, transferir e ligar
                 log("buttonController:makeConference: finished redirects, now I will dial to the conference " + btn.button_prt);
                 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-                await delay(5000); // Atraso de 5 segundos
+                await delay(1000); // Atraso de 1 segundos
                 return await makeCall(guid, btn_id, btn.button_device, btn.button_prt)
                 
             }
@@ -1180,7 +1175,6 @@ export const makeConference = async (guid, btn_id, calls) => {
         return e
     }  
 }
-
 function verificarThresholds(data, buttons) {
     var ativos = [];
     //log("actionController:verificarAcoes:parameters data" + JSON.stringify(data))
@@ -1230,4 +1224,4 @@ function getDegreeRange(direction) {
       default:
         return { min: 0, max: 0 };
     }
-  }
+}

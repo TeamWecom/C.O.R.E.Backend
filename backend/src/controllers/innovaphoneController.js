@@ -1,5 +1,5 @@
 // controllers/innovaphoneController.js
-import { broadcast, send } from '../managers/webSocketManager.js';
+import { broadcast, send, getConnections } from '../managers/webSocketManager.js';
 import { getDateNow } from '../utils/getDateNow.js';
 import db from '../managers/databaseSequelize.js';
 import { QueryTypes, Op } from 'sequelize';
@@ -19,6 +19,14 @@ const staticDir = path.join(__dirname, '../httpfiles/');
 
 let presences = [];
 let pbxUsers = [];
+
+export const restartPassiveRCCMonitor = async () =>{
+    const usersLogged = getConnections();
+    for (const user of usersLogged) {
+        await innovaphonePassiveRCCMonitor(user);
+    }
+    
+}
 
 export const innovaphonePassiveRCCMonitor = async (user) => {
     try {
@@ -1068,8 +1076,20 @@ export const userEvents = async (obj) =>{
             })
 
             if(user){
-                log('innovaphoneController:userEvents:UserInfo: Terminais registrados para '+JSON.stringify(user.name))
+                log('innovaphoneController:userEvents:UserInfo: Registered Devices for '+JSON.stringify(user.name))
                 send(user.guid, {api:"user",mt:"UserEvent", devices: obj.regs})
+            } 
+        }
+        if(obj.mode == 'ReplicateUpdate' && obj.guid){
+            const user = await db.user.findOne({
+                where:{
+                    sip:obj.guid
+                }
+            })
+
+            if(user){
+                log('innovaphoneController:userEvents:ReplicateUpdate: User updated '+JSON.stringify(user.name))
+                broadcast({api:"user",mt:"ReplicateUpdate", result: obj.result})
             } 
         }
 
