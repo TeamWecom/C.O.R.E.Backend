@@ -37,6 +37,7 @@ import bodyParserXml from 'body-parser-xml';
 import aedes from 'aedes';
 import net from 'net';
 import mqttRoutes from './routes/mqttRoutes.js';
+import FlicRouter from './routes/flicRoutes.js';
 
 bodyParserXml(bodyParser);
 
@@ -48,10 +49,13 @@ const env = process.env.NODE_ENV || 'development';
 const config = configFile[env];
 
 
-const PORT_HTTPS = process.env.PORT_HTTPS ||444; // Porta padrão para HTTPS
-const PORT_HTTP = process.env.PORT_HTTP || 444; // Porta padrão para HTTP
-const PORT_WS = process.env.PORT_WS || 10000; // Porta padrão para WS
-const PORT_MQTT = process.env.PORT_MQTT || 1833; // Porta padrão para MQTT
+const PORT_HTTPS = process.env.PORT_HTTPS ||4444; // Porta padrão para HTTPS
+const PORT_HTTP = process.env.PORT_HTTP || 4444; // Porta padrão para HTTP
+const PORT_WS = process.env.PORT_WS || 10101; // Porta padrão para WS
+const PORT_MQTT = process.env.PORT_MQTT || 1883; // Porta padrão para MQTT
+
+const CERT_SSL = process.env.CERT_SSL || '/app/cert.pem'; // Certificado
+const KEY_SSL = process.env.KEY_SSL || '/app/key.key'; // Key
 
 // Permitindo todas as origens
 app.use(cors());
@@ -88,8 +92,8 @@ let enableHttps = config.useHttps === 'true';
 if (enableHttps) {
     // Configuração do servidor HTTPS
     const options = {
-        key: fs.readFileSync('/home/wecom/wecom.com.br.key'),
-        cert: fs.readFileSync('/home/wecom/wecom.com.br.pem')
+        key: fs.readFileSync(KEY_SSL),
+        cert: fs.readFileSync(CERT_SSL)
     };
 
     // Iniciar o servidor HTTPS
@@ -222,4 +226,10 @@ mqttRoutes(broker);
 
 //Rota da Alexa
 app.use('/api/alexa', AlexaRouter);
+
+
+//Rota do Flic
+app.use('/api/flic', FlicRouter);
+
+//Recria rotina de Backups
 checkBackupRoutine();

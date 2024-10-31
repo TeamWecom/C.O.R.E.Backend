@@ -8,6 +8,11 @@ class iotDevicesHistory extends Model {
 }
 
 iotDevicesHistory.init({
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
     sensor_name: DataTypes.STRING,
     deveui: DataTypes.STRING,
     battery: DataTypes.STRING,

@@ -7,6 +7,11 @@ class Preference extends Model {
 }
 
 Preference.init({
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
     guid: {
       type: DataTypes.TEXT,
       allowNull: false,

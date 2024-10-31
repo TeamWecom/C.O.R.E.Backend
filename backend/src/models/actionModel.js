@@ -8,6 +8,11 @@ class Action extends Model {
 }
 
 Action.init({
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
   action_name: DataTypes.STRING,
   action_start_prt: DataTypes.STRING,
   action_start_type: DataTypes.STRING,

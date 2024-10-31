@@ -7,6 +7,11 @@ class Button extends Model {
     }
   }
 Button.init({
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
       button_name : DataTypes.STRING,
       button_prt : DataTypes.STRING,
       button_user : DataTypes.STRING,
@@ -34,5 +39,10 @@ Button.init({
       tableName: 'list_buttons', // Defina o nome da tabela aqui
       timestamps: true
     });
+
+    // Definir a associação no próprio modelo
+    Button.associate = (models) => {
+      Button.belongsTo(models.User, { foreignKey: 'guid' });
+  };
 
 export default Button;

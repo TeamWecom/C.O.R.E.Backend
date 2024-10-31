@@ -18,7 +18,8 @@ import { generatePDF, generateExcel } from '../utils/generateReportFile.js';
 import fs from 'fs';
 import { backupDatabase, compressAndDownloadFiles } from '../utils/dbMaintenance.js';
 import {convertVideo, convertTsToMp4} from '../utils/videoConverter.js';
-
+import process from 'process';
+const env = process.env.NODE_ENV || 'development';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -65,7 +66,8 @@ router.post('/uploadFiles', upload.single('file'), async (req, res) => {
 // Rota para criar usuário
 router.post('/create', async (req, res) => {
     try {
-        const result = await createUser(req.headers['x-auth'], req.body);
+        const host = process.env.FRONT_URL || req.headers.origin;
+        const result = await createUser(req.headers['x-auth'], req.body, host);
         res.status(200).send(result);
     } catch (e) {
         res.status(500).json({ error: e.message });

@@ -233,40 +233,49 @@ export const executeBackup = async () => {
   
 // Function to generate a cron expression based on the user-defined schedule
 const getCronExpression = ({ interval, dayOfMonth, time }) => {
-    const [hour, minute] = time.split(':');
-  
-    if (interval === 1) {
-      // Every month on the specified day and time
-      return `${minute} ${hour} ${dayOfMonth} * *`;
-    } else if (interval === 3) {
-      // Every 3 months on the specified day and time
-      return `${minute} ${hour} ${dayOfMonth} */3 *`;
-    } else if (interval === 6) {
-      // Every 6 months on the specified day and time
-      return `${minute} ${hour} ${dayOfMonth} */6 *`;
-    } else {
-      throw new Error('Invalid interval');
+    try{
+        const [hour, minute] = time.split(':');
+    
+        if (interval === 1) {
+        // Every month on the specified day and time
+        return `${minute} ${hour} ${dayOfMonth} * *`;
+        } else if (interval === 3) {
+        // Every 3 months on the specified day and time
+        return `${minute} ${hour} ${dayOfMonth} */3 *`;
+        } else if (interval === 6) {
+        // Every 6 months on the specified day and time
+        return `${minute} ${hour} ${dayOfMonth} */6 *`;
+        } else {
+        throw new Error('Invalid interval');
+        }
+    }catch(e){
+        log('dbMaintenance:getCronExpression: Error: '+ e);
+        return null;
     }
 };
 
 // Main function to schedule the backup task
 const scheduleBackupTask = async (config) => {
-    const cronExpression = getCronExpression(config);
-    log('dbMaintenance:scheduleBackupTask: Backup scheduled with cron expression:'+ cronExpression);
+    try{
+        const cronExpression = getCronExpression(config);
+        log('dbMaintenance:scheduleBackupTask: Backup scheduled with cron expression:'+ cronExpression);
 
-    // Se já houver uma tarefa agendada com o mesmo nome, a cancela antes de agendar novamente
-    if (cronTasks['backupTask']) {
-        cronTasks['backupTask'].stop();
-        log('dbMaintenance:scheduleBackupTask: Backup stoped cron schedule:');
-      }
+        // Se já houver uma tarefa agendada com o mesmo nome, a cancela antes de agendar novamente
+        if (cronTasks['backupTask']) {
+            cronTasks['backupTask'].stop();
+            log('dbMaintenance:scheduleBackupTask: Backup stoped cron schedule:');
+        }
 
-    //'*/2 * * * *' a cada 2 minutos para testes se necessário
-    const task = cron.schedule(cronExpression, async () => {
-      log(`dbMaintenance:scheduleBackupTask: Backup task triggered at ${moment().format('YYYY-MM-DD HH:mm:ss')}`);
-      await executeBackup();
-    });
+        //'*/2 * * * *' a cada 2 minutos para testes se necessário
+        const task = cron.schedule(cronExpression, async () => {
+        log(`dbMaintenance:scheduleBackupTask: Backup task triggered at ${moment().format('YYYY-MM-DD HH:mm:ss')}`);
+        await executeBackup();
+        });
 
-    cronTasks['backupTask'] = task;
+        cronTasks['backupTask'] = task;
+    }catch(e){
+        log(`dbMaintenance:scheduleBackupTask: Eror: ${e}`);
+    }
 };
 export const scheduleBackupTaskWithDb = async (name, config) => {
     try {
@@ -416,28 +425,31 @@ export const checkBackupRoutine = async () =>{
               entry: backupEntries
             }
         });
-      
-        // Transforma o resultado em um objeto chave-valor
-        const configObj = {};
-        configs.forEach(config => {
-        configObj[config.entry] = config.value;
-        });
-    
-        //log('core-service:checkBackupRoutine:configObj: '+  JSON.stringify(configObj));
-        if(configObj && configObj.backupMethod != '' && configObj.backupFrequency != ''){
-            // Simulated user input for the backup schedule
-            const userConfig = {
-                interval: parseInt(configObj.backupFrequency), // Interval: 1 (monthly), 3 (every 3 months), 6 (every 6 months)
-                dayOfMonth: parseInt(configObj.backupDay), // Day of the month (e.g., 15th)
-                time: configObj.backupHour, // Time of the day (24-hour format)
-            };
+        if(configs.lenght > 0){
+            // Transforma o resultado em um objeto chave-valor
+            const configObj = {};
+            configs.forEach(config => {
+            configObj[config.entry] = config.value;
+            });
+            
+            //log('core-service:checkBackupRoutine:configObj: '+  JSON.stringify(configObj));
+            if(configObj && configObj.backupMethod != '' && configObj.backupFrequency != ''&& configObj.backupHour != ''&& configObj.backupDay != ''){
+                // Simulated user input for the backup schedule
+                const userConfig = {
+                    interval: parseInt(configObj.backupFrequency), // Interval: 1 (monthly), 3 (every 3 months), 6 (every 6 months)
+                    dayOfMonth: parseInt(configObj.backupDay), // Day of the month (e.g., 15th)
+                    time: configObj.backupHour, // Time of the day (24-hour format)
+                };
 
-            scheduleBackupTask(userConfig);
-            //executeBackup();
+                scheduleBackupTask(userConfig);
+                //executeBackup();
+            }
+        }else{
+            log('dbMaintenance:checkBackupRoutine:No configs:');
         }
 
     }catch(e){
-        log('dbMaintenance:checkBackupRoutine:Erro: '+  error);
+        log('dbMaintenance:checkBackupRoutine:Erro: '+  e);
     }
     
 }

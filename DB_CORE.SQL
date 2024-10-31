@@ -540,7 +540,7 @@ ON DELETE CASCADE;
 
 
 
--- Inserção dos dados na tabela 'configs'
+-- Inserção dos dados na tabela 'user'
 INSERT INTO public.users ("name", email,"password","createdAt","type",guid) VALUES
 ('Administrador', 'admin@wecom.com.br','$2a$15$OFM4/8HzxjsFvzVz57T1ie6CwLWroYkDtSE1v4mttNcx993CU2xCW',to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS'),'admin','6969696969696969696');
 

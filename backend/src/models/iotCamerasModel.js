@@ -7,6 +7,11 @@ class Camera extends Model {
 }
 
 Camera.init({
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
     mac: DataTypes.STRING,
     nickname: DataTypes.STRING,
     create_user: DataTypes.STRING,

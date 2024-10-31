@@ -9,6 +9,11 @@ class ActiveAlarms extends Model {
 }
 
 ActiveAlarms.init({
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true
+    },
     from: DataTypes.STRING,
     prt: DataTypes.STRING,
     btn_id: DataTypes.BIGINT,

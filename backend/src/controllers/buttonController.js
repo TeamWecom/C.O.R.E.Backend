@@ -55,11 +55,11 @@ export const rccMonitor = async (guid) => {
 
         
         log("buttonController:rccMonitor: pbxType " + pbxType.value);
-        if(pbxType.value == 'INNOVAPHONE'){
+        if(pbxType.value && pbxType.value == 'INNOVAPHONE'){
             
             return await innovaphonePassiveRCCMonitor(user)
         }
-        if(pbxType.valuel == 'EPYGI'){                                    
+        if(pbxType.value && pbxType.valuel == 'EPYGI'){                                    
             // if(pbxConfig.customHeaders){
             //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
             // }
@@ -101,11 +101,11 @@ export const rccMonitorEnd = async (guid) => {
 
         
         log("buttonController:rccMonitorEnd: pbxType " + pbxType.value);
-        if(pbxType.value == 'INNOVAPHONE'){
+        if(pbxType.value && pbxType.value == 'INNOVAPHONE'){
             
             return await innovaphonePassiveRCCMonitorEnd(user)
         }
-        if(pbxType.valuel == 'EPYGI'){                                    
+        if(pbxType.value &&pbxType.valuel == 'EPYGI'){                                    
             // if(pbxConfig.customHeaders){
             //     httpClient.setCustomHeaders(pbxConfig.customHeaders)
             // }
@@ -659,7 +659,7 @@ export const clearCall = async (guid, btn_id, device, call) => {
             })
             
     
-            let call = await db.call.findOne({
+            let callInCurse = await db.call.findOne({
                 where: {
                   guid: guid,
                   number: btn.button_prt,
@@ -674,7 +674,7 @@ export const clearCall = async (guid, btn_id, device, call) => {
                 { call_ended: getDateNow(),
                     status: 3
                  }, // Valores a serem atualizados
-                { where: { id: parseInt(call.id) } } // Condição para atualização
+                { where: { id: parseInt(callInCurse.id) } } // Condição para atualização
               );
               log("buttonController:ClearCall::callToUpdateResult "+callToUpdateResult)
             if(pbxType.value === 'INNOVAPHONE'){
@@ -707,6 +707,27 @@ export const clearCall = async (guid, btn_id, device, call) => {
             }
 
         }else{
+            let callInCurse = await db.call.findOne({
+                where: {
+                  guid: guid,
+                  call_innovaphone: call,
+                  device: device,
+                  status: 1,
+                },
+                order: [
+                  ['id', 'DESC']
+                ]
+              });
+              
+            if(callInCurse){
+                const callToUpdateResult = await db.call.update(
+                    { call_ended: getDateNow(),
+                        status: 3
+                     }, // Valores a serem atualizados
+                    { where: { id: parseInt(callInCurse.id) } } // Condição para atualização
+                );
+                log("buttonController:clearCall:callToUpdateResult "+callToUpdateResult)
+            }
             if(pbxType.value === 'INNOVAPHONE'){
                 return await innovaphoneClearCall(null, user, device, call);
     

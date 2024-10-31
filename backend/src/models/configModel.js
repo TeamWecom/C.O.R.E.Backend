@@ -6,8 +6,13 @@ class Config extends Model {
   }
 }
   Config.init({
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true
+    },
     entry : DataTypes.STRING,
-    value : DataTypes.STRING,
+    value : DataTypes.TEXT,
     createdAt: DataTypes.DATE,
     updatedAt: DataTypes.DATE
   }, {

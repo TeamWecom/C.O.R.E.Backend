@@ -16,6 +16,7 @@ import {sendEmail} from '../managers/smtpManager.js';
 
 
 export const createUser = async (token, userData) => {
+    const front_URL = process.env.FRONT_URL || req.headers.host;
     const decoded = await validateToken(token);
     const user = await db.user.findOne({ where: { id: decoded.id } });
 
@@ -51,6 +52,100 @@ export const createUser = async (token, userData) => {
 
     await db.user.create(obj);
     log("authController:createUser: Usuário criado: " + email);
+    const decodedText = Buffer.from(password, 'base64').toString('utf-8');
+    const body = `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Seu acesso ao CORE chegou!</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f4;
+                margin: 0;
+                padding: 0;
+                color: white;
+            }
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: hsl(222.2, 84%, 4.9%);
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                color: white;
+            }
+            .header {
+                background-color: hsl(222.2, 84%, 4.9%);
+                padding: 20px;
+                border-radius: 8px 8px 0 0;
+                text-align: center;
+                color: white;
+            }
+            .header h1 {
+                margin: 0;
+                font-size: 24px;
+                color: white;
+            }
+            .content {
+                padding: 20px;
+                text-align: center;
+                color: white;
+            }
+            .content p {
+                font-size: 16px;
+                line-height: 1.5;
+                margin-bottom: 20px;
+            }
+            .button {
+                background-color: #2594d4;
+                color: white;
+                padding: 15px 20px;
+                text-decoration: none;
+                border-radius: 5px;
+                font-size: 16px;
+            }
+            .button:hover {
+                background-color: #2594d4e6;
+            }
+            .footer {
+                text-align: center;
+                font-size: 12px;
+                color: #888;
+                margin-top: 20px;
+                padding: 10px 0;
+            }
+            .link{
+                text-decoration: none;
+                color: white
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <img src="">
+                <h1>Bem vindo ao Control Operation Responsive Enviroment</h1>
+            </div>
+            <div class="content">
+                <p>Olá ${name},abaixo você tem informações sobre sua conta:</p>
+                <p class="link" >Usuário: ${email}</p>
+                <p>Senha: ${decodedText}</p>
+                <br/>
+                <a href="https://${front_URL}" class="button">Login</a>
+                <p>Ou copie e cole este link no seu navegador:</p>
+                <p><a class="link" href="https://${front_URL}">https://${front_URL}</a></p>
+            </div>
+            <div class="footer">
+                <p>CORE | Av Carlos Gomes, 466 -CJ 401, Porto Alegre - RS</p>
+            </div>
+        </div>
+    </body>
+    </html>`
+    // Send the reset email with the token
+    await sendEmail([email], 'Seu acesso ao C.O.R.E. chegou!', body);
+
     return { result: 'success' };
 };
 
@@ -208,7 +303,7 @@ export const deleteUser = async (token, { id }) => {
 export const requestPasswordReset = async (req, res) => {
     try {
         const { email } = req.body;
-        const host = req.headers.host;
+        const front_URL = process.env.FRONT_URL || req.headers.host;
         // Find the user by their guid
         const user = await db.user.findOne({ where: { email } });
 
@@ -218,73 +313,81 @@ export const requestPasswordReset = async (req, res) => {
 
         // Generate a unique password reset token and save it with an expiration time
         const token = await generateResetToken(user.guid);
-        const resetLink = `https://${host}/reset-password?token=${token}`;
+        const resetLink = `https://${front_URL}/reset-password?token=${token}`;
         const body = `<!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redefinição de Senha</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-            color: #333;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        .header {
-            background-color: #020817;
-            padding: 20px;
-            border-radius: 8px 8px 0 0;
-            text-align: center;
-            color: white;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-        }
-        .content {
-            padding: 20px;
-            text-align: center;
-        }
-        .content p {
-            font-size: 16px;
-            line-height: 1.5;
-            margin-bottom: 20px;
-        }
-        .button {
-            background-color: #2594d4;
-            color: white;
-            padding: 15px 20px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-size: 16px;
-        }
-        .button:hover {
-            background-color: #2594d4e6;
-        }
-        .footer {
-            text-align: center;
-            font-size: 12px;
-            color: #888;
-            margin-top: 20px;
-            padding: 10px 0;
-        }
-    </style>
+    <title>Redefinir Senha - CORE</title>
+      <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f4;
+                margin: 0;
+                padding: 0;
+                color: white;
+            }
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: hsl(222.2, 84%, 4.9%);
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                color: white;
+            }
+            .header {
+                background-color: hsl(222.2, 84%, 4.9%);
+                padding: 20px;
+                border-radius: 8px 8px 0 0;
+                text-align: center;
+                color: white;
+            }
+            .header h1 {
+                margin: 0;
+                font-size: 24px;
+                color: white;
+            }
+            .content {
+                padding: 20px;
+                text-align: center;
+                color: white;
+            }
+            .content p {
+                font-size: 16px;
+                line-height: 1.5;
+                margin-bottom: 20px;
+            }
+            .button {
+                background-color: #2594d4;
+                color: white;
+                padding: 15px 20px;
+                text-decoration: none;
+                border-radius: 5px;
+                font-size: 16px;
+            }
+            .button:hover {
+                background-color: #2594d4e6;
+            }
+            .footer {
+                text-align: center;
+                font-size: 12px;
+                color: #888;
+                margin-top: 20px;
+                padding: 10px 0;
+            }
+            .link{
+                text-decoration: none;
+                color: white
+            }
+        </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Redefinição de Senha</h1>
+        <div class="header" >
+            <img src="">
+            <h1>Redefinição de senha</h1>
         </div>
         <div class="content">
             <p>Se você solicitou a redefinição da sua senha. Clique no botão abaixo para redefinir sua senha, caso contrário, exclua este e-mail:</p>
@@ -293,11 +396,11 @@ export const requestPasswordReset = async (req, res) => {
             <p><a href="${resetLink}">${resetLink}</a></p>
         </div>
         <div class="footer">
-            <p>CORE | Av Carlos Gomes, 466 -CJ 401, Porto Alegre - RS</p>
+            <p>Av Carlos Gomes, 466 -CJ 401, Porto Alegre - RS</p>
         </div>
     </div>
 </body>
-</html>`
+        </html>`
         // Send the reset email with the token
         await sendEmail([user.email], 'ResetPassword', body);
 

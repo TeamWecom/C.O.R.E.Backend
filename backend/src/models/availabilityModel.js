@@ -8,6 +8,11 @@ class Availabilitiy extends Model {
 }
 
 Availabilitiy.init({
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
     guid: DataTypes.STRING,
     name: DataTypes.STRING,
     date: DataTypes.DATE,

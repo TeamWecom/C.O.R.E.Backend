@@ -7,6 +7,11 @@ class Gateway extends Model {
 }
 
 Gateway.init({
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
     host: DataTypes.STRING,
     userapi: DataTypes.STRING,
     password: DataTypes.STRING,

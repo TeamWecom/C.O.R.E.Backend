@@ -1,0 +1,39 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: core_service
+    restart: always
+    ports:
+      - "10101:10101"
+      - "4444:4444"
+      - "1883:1883"
+    volumes:
+      - /home/wecom/key.key:/app/key.key
+      - /home/wecom/cert.pem:/app/cert.pem
+    environment:
+      - DB_HOST=db
+      - DB_USER=core_user
+      - DB_PASSWORD=Wecom12#
+      - DB_NAME=core
+    depends_on:
+      - db
+    command: >
+      sh -c "npx sequelize-cli db:migrate && npm start"
+
+  db:
+    image: postgres:14-alpine
+    container_name: core_db
+    restart: always
+    environment:
+      POSTGRES_USER: core_user
+      POSTGRES_PASSWORD: Wecom12#
+      POSTGRES_DB: core
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  pgdata:

@@ -229,7 +229,7 @@ export const handleConnection = async (conn, req) => {
                         conn.send(JSON.stringify({ api: "user", mt: "TableUsersResult", src: obj.src, result: list_users }));
                         
                         const pbxUsers = await pbxTableUsers();
-                        conn.send(JSON.stringify({ api: "user", mt: "PbxTableUsersResult", src: obj.src, result: pbxUsers }));
+                        conn.send(JSON.stringify({ api: "user", mt: "PbxTableUsersResult", src: obj.src, result: pbxUsers}));
                         requestPresences(conn.guid)
                         const msgs = await db.message.findAll({
                             where: {
@@ -265,19 +265,30 @@ export const handleConnection = async (conn, req) => {
                         });
 
                         const usersInn = await pbxTableUsers()
-                        const userInn = usersInn.filter(u => u.guid == conn.sip )[0]
+                        if(Array.isArray(usersInn) && usersInn.length>0){
+                            const userInn = usersInn.filter(u => u.guid == conn.sip )[0]
                         
-                        if(calls.length>0){
-                            await Promise.all(calls.map(async c => {
-                                const deviceInn = userInn.devices.find(d => d.hw === c.device);
-                                if (deviceInn) {
-                                    c.setDataValue('deviceText', deviceInn.text);
-                                }
-                            }));
+                            if(calls.length>0){
+                                await Promise.all(calls.map(async c => {
+                                    //Adicionar a coluna deviceText
+                                    const deviceInn = userInn.devices.find(d => d.hw === c.device);
+                                    if (deviceInn) {
+                                        c.setDataValue('deviceText', deviceInn.text);
+                                    }
+                                    //substituir o guid pelo num quando houver btn_id
+                                    if(c.btn_id != ''){
+                                        const userInnCall = usersInn.filter(u => u.guid == c.number )[0]
+                                        if (userInnCall) {
+                                            c.setDataValue('number', userInnCall.e164);
+                                        }
+    
+                                    }
+                                }));
+                            }
                         }
+                        
                         conn.send(JSON.stringify({ api: "user", mt: "CallsInCurse", result: calls }));
-
-                        log(await rccMonitor(conn.guid))
+                        await rccMonitor(conn.guid)
                     }
                     if (obj.mt == "getHistory") {
                         log("webSocketController:getHistory:");

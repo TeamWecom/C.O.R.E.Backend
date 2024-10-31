@@ -8,6 +8,11 @@ class Activity extends Model {
 }
 
 Activity.init({
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
     guid: DataTypes.STRING,
     from: DataTypes.STRING,
     name: DataTypes.STRING,

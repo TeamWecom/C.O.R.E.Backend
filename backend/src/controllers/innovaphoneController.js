@@ -589,19 +589,23 @@ export const pbxTableUsers = async () => {
         });
         log('innovaphoneController:pbxTableUsers: config '+JSON.stringify(config))
         // Solicitação para obter dispositivos
-        const pbxResponse = await sendHttpGetRequest(config.value+"/pbxTableUsers", '{}');
-        if(pbxResponse.data && pbxResponse){
-            log(`innovaphoneController:pbxTableUsers: result ${pbxResponse.data.length} users`)
-            if (Array.isArray(pbxResponse.data)) {
-                pbxUsers = pbxResponse.data;
-                return pbxResponse.data;
-            } else {
-                return [];
+        if(config.value != ''){
+            const pbxResponse = await sendHttpGetRequest(config.value+"/pbxTableUsers", '{}');
+            if(pbxResponse.data && pbxResponse){
+                log(`innovaphoneController:pbxTableUsers: result ${pbxResponse.data.length} users`)
+                if (Array.isArray(pbxResponse.data)) {
+                    pbxUsers = pbxResponse.data;
+                    return pbxResponse.data;
+                }
             }
+        }else{
+            log('innovaphoneController:pbxTableUsers: No config')
         }
+        return [];
     }
     catch(e){
-        return e;
+        log(`innovaphoneController:pbxTableUsers: Error ${e}`)
+        return [];
     }
 }
 
@@ -820,9 +824,10 @@ export const callEvents = async (obj) => {
                         }
                     })
                     if(btn){
-                        obj.num = btn.button_prt;
+                        //
                         send(user.guid, {api: "user", mt: "CallRinging", call: obj.call, btn_id: btn.id, device: obj.device, num: obj.num})
                         broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
+                        obj.num = btn.button_prt;
                     }
                 }else{
                     send(user.guid, {api: "user", mt: "CallRinging", call: obj.call, device: obj.device, num: obj.num})
@@ -922,9 +927,10 @@ export const callEvents = async (obj) => {
                         }
                     })
                     if(btn){
-                        obj.num = btn.button_prt;
+                        //
                         send(user.guid, {api: "user", mt: "CallConnected", call: obj.call, btn_id: btn.id, device: obj.device, num: obj.num})
                         broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "busy", color: "busy" })
+                        obj.num = btn.button_prt;
                     }
                 }else{
                     send(user.guid, {api: "user", mt: "CallConnected", call: obj.call, device: obj.device, num: obj.num})
@@ -1061,7 +1067,7 @@ export const callEvents = async (obj) => {
             }
         }
     }catch(e){
-        log('innovaphoneController:callEvents: error = '+ e)
+        log('innovaphoneController:callEvents: Error = '+ e)
     }
 }
 

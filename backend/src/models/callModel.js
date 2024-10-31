@@ -6,6 +6,11 @@ class Call extends Model {
     }
 }
 Call.init({
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
     guid: DataTypes.STRING,
     number: DataTypes.STRING,
     call_started: DataTypes.STRING,
