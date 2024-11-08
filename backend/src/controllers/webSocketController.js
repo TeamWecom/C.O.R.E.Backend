@@ -520,7 +520,10 @@ export const handleConnection = async (conn, req) => {
                         break;
                     }
                     if (obj.mt == "TriggerAlarm") { //Chamado quando o usuário pressiona um Botão de alarme na tela
-                        const TriggerAlarmResult = await triggerAlarm(conn.guid, obj.prt, obj.btn_id)
+                        const btn = await db.button.findOne({where:{
+                            id: parseInt(obj.btn_id)
+                        }})
+                        const TriggerAlarmResult = await triggerAlarm(conn.guid, btn)
                         
                         //trigger the HTTP server
                         const urlEnable = await db.config.findOne({where:{
@@ -534,20 +537,21 @@ export const handleConnection = async (conn, req) => {
                             log('TriggerAlarm urlalamrserver result '+ sendResult)
                             //callHTTPSServer(parseInt(obj.prt), conn.guid);
                         }
-
-                        const btn = await db.button.findOne({where:{
-                            id: obj.btn_id
-                        }})
                         
                         //intert into DB the event
-                        var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "out", details: btn.id, prt: obj.prt }
-                        log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                        const resultInsert = await db.activity.create(msg)
+                        //var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "out", details: btn.id, prt: obj.prt }
+                        //log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
+                        //const resultInsert = await db.activity.create(msg)
                         //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
-                        conn.send(JSON.stringify({ api: "user", mt: "TriggerAlarmResult", result: TriggerAlarmResult, src: resultInsert }));
+                        conn.send(JSON.stringify({ api: "user", mt: "TriggerAlarmResult", result: TriggerAlarmResult, src: obj.src }));
                     }
                     if (obj.mt == "TriggerStopAlarm") { //Chamado quando o usuário pressiona um Botão de alarme na tela
-                        const TriggerStopAlarmResult = await triggerStopAlarm(conn.guid, obj.prt)
+                        
+                        const btn = await db.button.findOne({where:{
+                            id: parseInt(obj.btn_id)
+                        }})
+
+                        const TriggerStopAlarmResult = await triggerStopAlarm(conn.guid, btn)
                         
                         //trigger the HTTP server
                         const urlEnable = await db.config.findOne({where:{
@@ -562,17 +566,15 @@ export const handleConnection = async (conn, req) => {
                             //callHTTPSServer(parseInt(obj.prt), conn.guid);
                         }
 
-                        const btn = await db.button.findOne({where:{
-                            id: obj.btn_id
-                        }})
+                        
 
                         //intert into DB the event
-                        var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "stop", details: btn.id, prt: obj.prt }
-                        log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                        const resultInsert = await db.activity.create(msg)
+                        //var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "stop", details: btn.id, prt: obj.prt }
+                        //log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
+                        //const resultInsert = await db.activity.create(msg)
                         //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
            
-                        conn.send(JSON.stringify({ api: "user", mt: "TriggerStopAlarmResult", result: TriggerStopAlarmResult, btn_id: obj.btn_id, src: resultInsert }));
+                        conn.send(JSON.stringify({ api: "user", mt: "TriggerStopAlarmResult", result: TriggerStopAlarmResult, btn_id: obj.btn_id, src: obj.src }));
                     }
                     //#endregion
                     //#region SENSORS
@@ -613,7 +615,7 @@ export const handleConnection = async (conn, req) => {
                     if(obj.mt == "SelectAllSensorInfoSrc"){ //Quando loga para retornar útimo valor de cada sensor na tabela
                         const query = `SELECT *
                                         FROM (
-                                            SELECT *, ROW_NUMBER() OVER (PARTITION BY sensor_name ORDER BY id DESC) as row_num
+                                            SELECT *, ROW_NUMBER() OVER (PARTITION BY deveui ORDER BY id DESC) as row_num
                                             FROM iot_devices_history
                                         ) AS subquery
                                         WHERE row_num <= 1
@@ -916,6 +918,7 @@ export const handleConnection = async (conn, req) => {
                             button_prt : String(obj.value), 
                             button_user : String(obj.guid),
                             button_type : String(obj.type),
+                            button_device: String(obj.device),
                             sensor_min_threshold : String(obj.min),
                             sensor_max_threshold : String(obj.max),
                             sensor_type: String(obj.sensorType),
@@ -1018,6 +1021,7 @@ export const handleConnection = async (conn, req) => {
                             button_prt : String(obj.value), 
                             button_user : String(obj.guid),
                             button_type : String(obj.type),
+                            button_device: String(obj.device),
                             sensor_min_threshold : String(obj.min),
                             sensor_max_threshold : String(obj.max),
                             img: String(obj.img),

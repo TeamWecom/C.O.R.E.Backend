@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
+import { triggerActionByStartType } from './actionController.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -920,6 +921,10 @@ export const callEvents = async (obj) => {
                 }
             })
             if(user){
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == obj.guid )[0]
+                broadcast({ api: "user", mt: "NumberBusy", number: userInn.e164, note: "busy", color: "busy" })
+
                 if(obj.btn_id && obj.btn_id !=""){
                     const btn = await db.button.findOne({
                         where: {
@@ -957,6 +962,12 @@ export const callEvents = async (obj) => {
                       );
                       log("innovaphoneController:callEvents::callToUpdateResult "+callToUpdateResult)
                 }
+
+                //Vamos verificar ações para ligações
+                var actionResult = await triggerActionByStartType(user.guid, obj.num, 'destNumber')
+                log("innovaphoneController:callEvents:CallConnected: triggerActionByStartType destNumber result " + actionResult);
+                var actionResult = await triggerActionByStartType(user.guid, userInn.e164, 'origemNumber')
+                log("innovaphoneController:callEvents:CallConnected: triggerActionByStartType origemNumber result " + actionResult);
             }
         }
         if(obj.mode == 'IncomingCallConnected'){
@@ -994,6 +1005,14 @@ export const callEvents = async (obj) => {
                 send(user.guid, {api: "user", mt: "IncomingCallConnected", device: obj.device, deviceText: device.text, num: obj.num, call: obj.call})
                 broadcast({ api: "user", mt: "NumberBusy", number: userInn.e164, note: "busy", color: "busy" })
                 broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "busy", color: "busy" })
+
+
+                //Vamos verificar ações para ligações
+                var actionResult = await triggerActionByStartType(obj.num, userInn.e164, 'destNumber')
+                log("innovaphoneController:callEvents:IncomingCallConnected: triggerActionByStartType destNumber result " + actionResult);
+                var actionResult = await triggerActionByStartType(obj.num, obj.num, 'origemNumber')
+                log("innovaphoneController:callEvents:IncomingCallConnected: triggerActionByStartType origemNumber result " + actionResult);
+
             }
         }
         if(obj.mode == 'CallHeld'){

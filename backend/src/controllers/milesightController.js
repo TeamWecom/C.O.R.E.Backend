@@ -1,7 +1,7 @@
 // controllers/webServerController.js
 import { send } from '../managers/webSocketManager.js';
 import { getDateNow } from '../utils/getDateNow.js';
-import { triggerActionByStartType, triggerActionBySensor } from './actionController.js';
+import { triggerActionBySensor } from './actionController.js';
 import db from '../managers/databaseSequelize.js';
 import { QueryTypes, Op, fn, col } from 'sequelize';
 import { stringToBase64 } from '../utils/typeHelpers.js';
@@ -22,7 +22,7 @@ export const receiveSensor = async (obj) => {
         
         try {
             resultAction = await triggerActionBySensor(obj);
-            log("milesightController:receiveSensor:triggerActionBySensor result? "+resultAction);
+            log("milesightController:receiveSensor:triggerActionBySensor result "+resultAction);
         } catch (e) {
             log("milesightController:receiveSensor:triggerActionBySensor error "+ e);
         }
@@ -126,7 +126,6 @@ export const receiveImage = async (obj) => {
 //
 export const receiveAlarm = async (obj) => {
     try {
-        let resultAction = {};
         let triggerAlarmResult = 0;
         //
         // Verificar ações cadastradas para esse sensor
@@ -135,47 +134,59 @@ export const receiveAlarm = async (obj) => {
         //log("danilo-req sensorReceived:value " + JSON.stringify(obj));
         
         try {
-            resultAction = await triggerActionByStartType(obj.deveui, obj.press, 'alarm');
-            log("milesightController:receiveAlarm:triggerActionBySensor result? "+resultAction);
+            const resultAction = await triggerActionBySensor(obj);
+            log("milesightController:receiveAlarm:triggerActionBySensor result "+resultAction);
         } catch (e) {
             log("milesightController:receiveAlarm:triggerActionBySensor error "+ e);
         }
         //
         // Atualizar botões dos usuários sobre info recebida do sensor
         //
+        const pressType = Object.keys(obj).find(key => key.startsWith("press_")); // Encontrar chave dinâmica
+
+
         const phisicalButtons = await db.button.findAll({
             where: {
                 button_prt: obj.deveui,
-                sensor_type: obj.press
+                sensor_type: pressType,
+                button_device: obj[pressType].toString() // Converte o valor para string
             },
         });
 
         if (phisicalButtons.length > 0) {
             phisicalButtons.forEach(async (b) => {
-                // log("danilo-req sensorReceived: sensors.forEach " + JSON.stringify(bs));
-                const sendResult = await send(b.button_user, { api: "user", mt: "SmartButtonReceived", alarm: obj.press, btn_id: b.id, src: obj.deveui, date: getDateNow() })
-                if(sendResult){triggerAlarmResult +=1}
-                //intert into DB the event
-                var msg = { guid: b.button_user, from: obj.deveui, name: "alarm", date: getDateNow(), status: "start", details: b.id, prt: b.button_prt }
-                log("milesightController:receiveAlarm: will insert it on DB : " + JSON.stringify(msg));
-                const resultInsert = await db.activity.create(msg)
-                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
-           
+
+                const isAlarmed = await db.activeAlarms.findOne({
+                    where: {
+                        btn_id: b.id
+                    }
+                })
+                if(!isAlarmed){
+                    // log("danilo-req sensorReceived: sensors.forEach " + JSON.stringify(bs));
+                    const sendResult = await send(b.button_user, { api: "user", mt: "SmartButtonReceived", alarm: pressType, btn_id: b.id, src: obj.deveui, date: getDateNow() })
+                    if(sendResult){triggerAlarmResult +=1}
+                    //intert into DB the event
+                    var msg = { guid: b.button_user, from: obj.deveui, name: "button", date: getDateNow(), status: "start", details: b.id, prt: b.sensor_type+'_'+b.button_device }
+                    log("milesightController:receiveAlarm: will insert it on DB : " + JSON.stringify(msg));
+                    const resultInsert = await db.activity.create(msg)
+                    send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert], button: b });
+
+                    // insert active Alarmed Button for user
+                    const objAlarm = { from: obj.deveui, prt: pressType, date: getDateNow(), btn_id: b.id }
+                    const result = await db.activeAlarms.create(objAlarm)
+                    log('milesightController:receiveAlarm: ActiveAlarm create result ' + result.id)
+                }else{
+                    log("milesightController:receiveAlarm: button is alarmed");
+                }
             });
         }
-        // insert activity for user
-        const objAlarm = { from: obj.deveui, prt: obj.press, date: getDateNow(), btn_id: '' }
-        const result = await db.activeAlarms.create(objAlarm)
-        log('milesightController:receiveAlarm: ActiveAlarm create result ' + result)
-
-        
 
         const resultInsert = await db.iotDevicesHistory.create(obj);
-        log("milesightController:receiveAlarm: event inserted into DB with id " + result.id);
-        return { msg: result, alarmResult: triggerAlarmResult };
+        log("milesightController:receiveAlarm: event inserted into DB with id " + resultInsert.id);
+        return { msg: resultInsert, alarmResult: triggerAlarmResult };
 
     } catch (e) {
-        return { msg: 'Error', actionResult: e };
+        return { msg: 'Error', e: e };
     }
 };
 

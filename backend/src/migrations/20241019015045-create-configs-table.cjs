@@ -42,7 +42,8 @@ module.exports = {
       { id: 22, entry: 'smtpPassword', value: '' },
       { id: 23, entry: 'smtpSecure', value: '' },
       { id: 24, entry: 'smtpHost', value: '' },
-      { id: 25, entry: 'smtpPort', value: '' }
+      { id: 25, entry: 'smtpPort', value: '' },
+      { id: 26, entry: 'theme', value: '' }
     ], {});
   },
 

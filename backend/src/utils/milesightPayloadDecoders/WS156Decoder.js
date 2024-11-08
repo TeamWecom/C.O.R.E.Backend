@@ -40,13 +40,13 @@ function decodeBytes(bytes) {
             }
             switch (bytes[i + 2]) {
                 case 0x00:
-                    decoded[btn_chn_event_name] = "short_press";
+                    decoded["short_press"] = id;
                     break;
                 case 0x01:
-                    decoded[btn_chn_event_name] = "double_press";
+                    decoded["double_press"] = id;
                     break;
                 case 0x02:
-                    decoded[btn_chn_event_name] = "long_press";
+                    decoded["long_press"] = id;
                     break;
                 default:
                     decoded[btn_chn_event_name] = "unknown";

@@ -19,6 +19,7 @@ import fs from 'fs';
 import { backupDatabase, compressAndDownloadFiles } from '../utils/dbMaintenance.js';
 import {convertVideo, convertTsToMp4} from '../utils/videoConverter.js';
 import process from 'process';
+import { getSystemPreferences } from '../utils/serviceManager.js'
 const env = process.env.NODE_ENV || 'development';
 
 const router = express.Router();
@@ -368,4 +369,16 @@ router.get('/convert/:fileName', async (req, res) => {
 })
 //#endregion
 
+//#region Predefinições de Aparencia
+// Rota para login do usuário
+router.get('/systemPreferences', async (req, res) => {
+    try {
+        const result = await getSystemPreferences();
+        res.status(200).send(result);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+//#endregion
 export default router;

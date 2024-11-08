@@ -16,23 +16,15 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { getDevices, TriggerCommand } from './milesightController.js';
 import {innovaphoneMakeCall} from './innovaphoneController.js'
+import { sendEmail } from '../managers/smtpManager.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
-const config = configFile[env];
 
 
-// Instanciação do modelo
-//const configModel = new ConfigModel();
-
-// Uso dos dados de configuração
-const pbxConfig = config.pbxConfig;
-//log(pbxConfig);
-
-//const httpService = new HttpService();
 
 export const triggerActionByStartType = async (from, prt, type) => {
     try {
@@ -54,14 +46,14 @@ export const triggerActionByStartType = async (from, prt, type) => {
         }
         else {
             //log("actionController:triggerActionByStartType:actions is null " + JSON.stringify(actions));
-            return actions.length;
+            return false;
         }
 
 
     }
     catch (e) {
         log("actionController:triggerActionByStartType: Try Body decode Erro " + e);
-        return e;
+        return false;
     }
 }
 export const triggerActionBySensor = async (obj) => {
@@ -69,9 +61,10 @@ export const triggerActionBySensor = async (obj) => {
         const actionsBySensor = await db.action.findAll({
             where: {
                 action_start_type: {
-                    [Op.or]: ['maxValue', 'minValue']
+                    [Op.or]: ['maxValue', 'minValue', 'equalValue']
                 }
-            }
+            },
+            raw: true
         })
         // Chamada da função para verificar ações
         const acoesAplicaveis = verificarAcoes(obj, actionsBySensor);
@@ -86,11 +79,12 @@ export const triggerActionBySensor = async (obj) => {
             
         } else {
             //log("danilo-req triggerActionBySensor: Nenhuma ação aplicável encontrada.");
-            return acoesAplicaveis.length;
+            return false;
         }
 
     }catch(e){
-        return e;
+        log("actionController:triggerActionBySensor: Try Body decode Erro " + e);
+        return false;
     }
     
 }
@@ -101,56 +95,28 @@ async function resolveAction(from, actions){
     try{
         actions.forEach(async function (ac) {
             log("actionController:resolveAction:ac " + JSON.stringify(ac.action_name));
-            let insertActivityResult;
-            
+            log(`actionController:resolveAction: action type ${ac.action_exec_type}`);
             switch (ac.action_exec_type) {
                 case "alarm":
-                    log("actionController:resolveAction: action type alarm");
-                    // Ação tratada... Então insere o log no DB para Histórico
-                    if(ac.action_user ==""){
-                        const users = await db.user.findAll();
-                        users.forEach(async u => {
-                            var msg = { guid: u.guid, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
-                            //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
-                            insertActivityResult = db.activity.create(msg)
-                            log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
-                            send(u.guid, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
-                        })
-
-                    }else{
-                        var msg = { guid: ac.action_user, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
-                        //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
-                        insertActivityResult = db.activity.create(msg)
-                        log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
-                        send(ac.action_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
-                    }
+                    notifyUsersAboutActionExecution(from, ac)
                     break;
                 case "number":
-                    log("actionController:resolveAction:number");
-                    log(await makeCall(ac))
-                    var msg = { guid: ac.action_user, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
-                    //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
-                    insertActivityResult = db.activity.create(msg)
-                    log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
-                    send(ac.action_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
-                
+                    await makeCall(ac)
+                    notifyUsersAboutActionExecution(from, ac)
                     break;
                 case "button":
-                    log("actionController:resolveAction:button");
-                    const buttonsByAlarm = db.button.findAll({
+                    const buttonsByAlarm = await db.button.findAll({
                         where: {
                             id: ac.action_exec_prt
                         },
+                        raw:true
                     })
-                    buttonsByAlarm.forEach((b, index, array) => {
-                        send(ac.action_user, { api: "user", mt: "ButtonRequest", name: b.button_name, alarm: b.button_prt, btn_id: b.id, type: b.button_type })
-                    })
-                    var msg = { guid: ac.action_user, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
-                    //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
-                    insertActivityResult = db.activity.create(msg)
-                    log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
-                    send(ac.action_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
-                
+                    if(buttonsByAlarm.length >0){
+                        buttonsByAlarm.forEach(async (b, index, array) => {
+                            send(ac.action_exec_user, { api: "user", mt: "ButtonRequest", name: b.button_name, alarm: b.button_prt, btn_id: b.id, type: b.button_type })
+                        })
+                        notifyUsersAboutActionExecution(from, ac)
+                    }
                     break;
                 case 'command':
 
@@ -170,25 +136,17 @@ async function resolveAction(from, actions){
                         //log("actionController:resolveAction:command to gateway_id "+gateway_id);
                         const commnadResult = await TriggerCommand(gateway_id, ac.action_exec_device, ac.action_exec_prt+'-'+ac.action_exec_type_command_mode)
                         log("actionController:resolveAction:command to gateway_id result "+commnadResult);
+                        notifyUsersAboutActionExecution(from, ac)
                         
-                        var msg = { guid: ac.action_exec_device, from: from, name: ac.action_exec_type, date: getDateNow(), status: "start", prt: ac.action_exec_prt, details: ac.id }
-                        //log("actionController:resolveAction: will insert it on DB : " + JSON.stringify(msg));
-                        insertActivityResult = db.activity.create(msg)
-                        log("actionController:resolveAction: insertActivityResult: id " + JSON.stringify(insertActivityResult.id));
-                        broadcast({ api: "user", mt: "getHistoryResult", result: [insertActivityResult] });
-                    
                     }else{
                         log("actionController:resolveAction:command ignored because state of "+ac.action_exec_prt+" on device "+ac.action_exec_device+" it's already "+ac.action_exec_type_command_mode );
                     }
-                    
                     break;
                 default:
                     log("actionController:resolveAction:unknown "+ ac.action_exec_type);
                     break;
+                
             }
-            
-                    
-
         })
         return true
     }catch(e){
@@ -219,7 +177,7 @@ function findGatewayIdByDevEUI(gateways, targetDevEUI) {
 function verificarAcoes(data, actions) {
     var acoes = [];
     //log("actionController:verificarAcoes:parameters data" + JSON.stringify(data))
-    actions.forEach(function (entry) {
+    actions.forEach(async (entry) => {
         //log("actionController:verificarAcoes:entry" + JSON.stringify(entry))
         // Verifica se o nome do sensor corresponde
         if (entry.action_start_device === data.deveui) {
@@ -230,6 +188,8 @@ function verificarAcoes(data, actions) {
                 if (entry.action_start_type == "maxValue" && value >= parseInt(entry.action_start_prt)) {
                     acoes.push(entry);
                 } else if (entry.action_start_type == "minValue" && value <= parseInt(entry.action_start_prt)) {
+                    acoes.push(entry);
+                }else if (entry.action_start_type == "equalValue" && value == parseInt(entry.action_start_prt)) {
                     acoes.push(entry);
                 }
             }
@@ -249,24 +209,23 @@ async function makeCall(action){
         })
         const user = await db.user.findOne({
             where: {
-                guid: ac.action_user
+                guid: action.action_exec_user
             }
         })
 
         let result = await db.call.create({
-            guid: ac.action_user,
+            guid: action.action_exec_user,
             number: action.action_exec_prt,
             call_started: getDateNow(),
             status: 1,
             direction:"out",
-            device: action.action_exec_device,
-            btn_id: action.id
+            device: action.action_exec_device
         })
         log("actionController:MakeCall: db.create.call success " + result.id);
         log("actionController:MakeCall: pbxType " + pbxType.value);
         if(pbxType.value == 'INNOVAPHONE'){
-            const btn_temp = {button_type: ac.action_exec_type, button_prt: action.action_exec_prt, id: action.id, button_device: action.action_exec_device}
-            return await innovaphoneMakeCall(btn_temp, user)
+            //const btn_temp = {button_type: action.action_exec_type, button_prt: action.action_exec_prt, id: action.id, button_device: action.action_exec_device}
+            return await innovaphoneMakeCall(null, user, action.action_exec_device, action.action_exec_prt)
         }
         if(pbxType.valuel == 'EPYGI'){                                    
             
@@ -275,4 +234,138 @@ async function makeCall(action){
         log("actionController:MakeCall: error " + e)
         return e
     }  
+}
+
+async function notifyUsersAboutActionExecution(from, action){
+    try{
+
+        const users = await db.user.findAll();
+
+        if(users.length > 0){
+
+            const create_user = users.find(u => u.guid === action.create_user);
+
+            users.forEach(async u => {
+                //Notificação no e-mail
+                const body = `<!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>CORE - Ação executada!</title>
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            background-color: #f4f4f4;
+                            margin: 0;
+                            padding: 0;
+                            color: white;
+                        }
+                        .container {
+                            max-width: 600px;
+                            margin: 0 auto;
+                            background-color: hsl(222.2, 84%, 4.9%);
+                            padding: 20px;
+                            border-radius: 8px;
+                            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                            color: white;
+                        }
+                        .header {
+                            background-color: hsl(222.2, 84%, 4.9%);
+                            padding: 20px;
+                            border-radius: 8px 8px 0 0;
+                            text-align: center;
+                            color: white;
+                        }
+                        .header h1 {
+                            margin: 0;
+                            font-size: 24px;
+                            color: white;
+                        }
+                        .content {
+                            padding: 20px;
+                            text-align: center;
+                            color: white;
+                        }
+                        .content p {
+                            font-size: 16px;
+                            line-height: 1.5;
+                            margin-bottom: 20px;
+                        }
+                        .button {
+                            background-color: #2594d4;
+                            color: white;
+                            padding: 15px 20px;
+                            text-decoration: none;
+                            border-radius: 5px;
+                            font-size: 16px;
+                        }
+                        .button:hover {
+                            background-color: #2594d4e6;
+                        }
+                        .footer {
+                            text-align: center;
+                            font-size: 12px;
+                            color: #888;
+                            margin-top: 20px;
+                            padding: 10px 0;
+                        }
+                        .link{
+                            text-decoration: none;
+                            color: white
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <img src="">
+                            <h1>Control Operation Responsive Enviroment</h1>
+                        </div>
+                        <div class="content">
+                            <p>Olá ${u.name},abaixo você tem informações sobre a ação executada:</p>
+                            <p class="link" >Nome da ação: ${action.action_name}</p>
+                            <br/>
+                            <p>Gatilho:</p>
+                            <p>Tipo: ${action.action_start_type}</p>
+                            <p>Parametro: ${action.action_start_device_parameter}</p>
+                            <p>Valor: ${action.action_start_prt}</p>
+                            <br/><br/>
+                            <p>Execução:</p>
+                            <p>Ação: ${action.action_exec_type}</p>
+                            <p>Parametro: ${action.action_exec_prt}</p>
+                            <br/>
+                            <p>Criado por: ${create_user.name}</p>
+                        </div>
+                        <div class="footer">
+                            <p>CORE | Av Carlos Gomes, 466 -CJ 401, Porto Alegre - RS</p>
+                        </div>
+                    </div>
+                </body>
+                </html>`
+
+                if(action.action_exec_user != '' && action.action_exec_user == u.guid){
+
+                    //Notificação no Histórico da console
+                    var msg = { guid: action.action_exec_user, from: from, name: action.action_exec_type, date: getDateNow(), status: "start", prt: action.action_exec_prt, details: action.id }
+                    var insertActivityResult = await db.activity.create(msg)
+                    send(action.action_exec_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] })
+
+                    // Send the reset email with the token
+                    await sendEmail([u.email], 'CORE - Ação executada!', body);
+                }
+                if(action.action_exec_user == ''){
+                    //Notificação no Histórico da console
+                    var msg = { guid: u.guid, from: from, name: action.action_exec_type, date: getDateNow(), status: "start", prt: action.action_exec_prt, details: action.id }
+                    var insertActivityResult = await db.activity.create(msg)
+                    send(u.guid, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] })
+
+                    // Send the reset email with the token
+                    await sendEmail([u.email], 'CORE - Ação executada!', body);
+                }
+            })
+        }
+    }catch(e){
+        log("actionController:notifyUsersAboutActionExecution: erro " + e);
+    }
 }

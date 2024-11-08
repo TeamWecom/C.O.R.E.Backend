@@ -21,13 +21,13 @@ function decodeBytes(bytes) {
 
             switch (type) {
                 case 1:
-                    decoded.press = "press_short";
+                    decoded.press_short = 1;
                     break;
                 case 2:
-                    decoded.press = "press_long";
+                    decoded.press_long = 1;
                     break;
                 case 3:
-                    decoded.press = "press_double";
+                    decoded.press_double = 1;
                     break;
                 default:
                     decoded.press = "unknown";

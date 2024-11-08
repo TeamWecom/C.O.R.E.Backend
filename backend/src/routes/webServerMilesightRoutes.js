@@ -60,7 +60,12 @@ router.post('/alarmTriggered', async (req, res) => {
         // Seleciona o decodificador correto com base no modelo
         switch (model.toLowerCase()) {
             case 'ws101':
+                //log('webServerAPIRoutes:alarmTriggered: ws101 body ' +JSON.stringify(body))
                 decoded = await decodePayloadWS101(body.data)
+                break;
+            case 'ws156':
+                //log('webServerAPIRoutes:alarmTriggered: ws101 body ' +JSON.stringify(body))
+                decoded = await decodePayloadWS156(body.data)
                 break;
             default:
                 return res.status(400).send({ error: 'Modelo desconhecido' });
@@ -127,6 +132,7 @@ router.post('/sensorTriggered', async (req, res) => {
                 break;
             case 'ws301':
                 decoded = await decodePayloadWS301(body.data)
+                //log('webServerAPIRoutes:sensorTriggered: ws301 body ' +JSON.stringify(body))
                 break;
             case 'ws202':
                 decoded = await decodePayloadWS202(body.data)

@@ -28,7 +28,6 @@ dotenvConfig();
 
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { combineTableNames } from 'sequelize/lib/utils';
 import { getDevices } from './milesightController.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -740,7 +739,7 @@ export const clearCall = async (guid, btn_id, device, call) => {
         
         
     }catch(e){
-        log("danilo-req ClearCall: error " + e)
+        log("buttonController:ClearCall: error " + e)
         return e
     }
 }
@@ -789,135 +788,20 @@ export const comboManager = async (combo, guid, mt) => {
     }catch(e){
         return({ api: "user", mt: "MessageError", result: String(e) })
     }
-    function comboDispatcher(button, guid, mt) {
-        try{
-            log("danilo-req comboDispatcher:button " + JSON.stringify(button));
-            let result;
-            switch (button.button_type) {
-                case "alarm":
-                    result = triggerActionByStartType(guid, button.button_prt, button.button_type)
-                    sendMessage(guid, { api: "user", mt: "ComboAlarmStarted", alarm: button.button_prt, btn_id: button.id })
-                    log("danilo-req comboDispatcher:alarm guid " + String(guid));
-
-                    break;
-                case "number":
-                    result = MakeCall(guid,button.button_device, button.button_prt)
-    
-                    sendMessage(guid, { api: "user", mt: "ComboCallStart", src: guid, num: button.button_prt, btn_id: button.id } )
-                    log("danilo-req comboDispatcher:number guid " + String(guid));
-                    
-                    break;
-                case "dest":
-                    result = MakeCall(guid,button.button_device, button.button_prt)
-    
-                    sendMessage(guid, { api: "user", mt: "ComboCallStart", src: guid, num: button.button_prt, btn_id: button.id } )
-                    log("danilo-req comboDispatcher:dest guid " + String(guid));
-    
-                    // var foundConnectionUser = connectionsUser.filter(function (conn) { return conn.guid === button.button_user });
-                    // log("danilo-req:comboDispatcher:found ConnectionUser for user Name " + foundConnectionUser[0].dn);
-                    // var foundCall = calls.filter(function (call) { return call.guid === button.button_user && call.num === button.button_prt });
-                    // log("danilo-req:comboDispatcher:found call " + JSON.stringify(foundCall));
-                    // if (foundCall.length == 0) {
-                    //     //log("danilo-req:comboDispatcher:found call for user " + foundCall[0].sip);
-                    //     //RCC.forEach(function (rcc) {
-                    //     //    var temp = rcc[String(foundConnectionUser[0].sip)];
-                    //     //    if (temp != null) {
-                    //     //        user = temp;
-                    //     //        log("danilo-req:comboDispatcher:will call callRCC for user " + user + " Nome " + foundConnectionUser[0].dn);
-                    //     //        callRCC(rcc, user, "UserCall", button.button_prt_user, foundConnectionUser[0].sip + "," + rcc.pbx);
-                    //     //    }
-                    //     //})
-                    //     var info = JSON.parse(foundConnectionUser[0].info);
-                    //     RCC.forEach(function (rcc) {
-                    //         if (rcc.pbx == info.pbx) {
-                    //             log("danilo req:comboDispatcher:guid " + foundConnectionUser[0].guid);
-                    //             var msg = { api: "RCC", mt: "UserInitialize", cn: foundConnectionUser[0].dn, hw: button.button_device, src: foundConnectionUser[0].guid + "," + rcc.pbx + "," + button.button_device + "," + button.button_prt + "," + button.id };
-                    //             log("danilo req:comboDispatcher: UserInitialize sent rcc msg " + JSON.stringify(msg));
-                    //             rcc.sendMessage(JSON.stringify(msg));
-                    //         }
-                    //     })
-                    //     connectionsUser.forEach(function (conn) {
-                    //         log("danilo-req comboDispatcher:ComboCallStart conn.guid " + String(conn.guid));
-                    //         log("danilo-req comboDispatcher:ComboCallStart button.button_user " + String(button.button_user));
-                    //         if (String(conn.guid) == String(button.button_user)) {
-                    //             conn.sendMessage(JSON.stringify({ api: "user", mt: "ComboCallStart", src: conn.guid, num: button.button_prt, btn_id: button.id }));
-                    //         }
-                    //     });
-                    // }
-                    break;
-                case "user":
-                    result = MakeCall(guid,button.button_device, button.button_prt)
-    
-                    sendMessage(guid, { api: "user", mt: "ComboCallStart", src: guid, num: button.button_prt, btn_id: button.id } )
-                    log("danilo-req comboDispatcher:user guid " + String(guid));
-                    // var foundConnectionUser = connectionsUser.filter(function (conn) { return conn.guid === guid });
-                    // log("danilo-req:TypeUser comboDispatcher:found ConnectionUser for user Name " + foundConnectionUser[0].dn);
-                    // var foundCall = calls.filter(function (call) { return call.guid == guid && call.num == button.button_prt });
-                    // log("danilo-req:comboDispatcher:found call " + JSON.stringify(foundCall));
-                    // if (foundCall.length == 0) {
-                    //     var filterGuid = pbxTableUsers.filter(function(u){
-                    //         return u.columns.guid == button.button_prt
-                    //     })[0]
-                    //     //log("danilo-req:comboDispatcher:found call for user " + foundCall[0].sip);
-                    //     //RCC.forEach(function (rcc) {
-                    //     //    var temp = rcc[String(foundConnectionUser[0].sip)];
-                    //     //    if (temp != null) {
-                    //     //        user = temp;
-                    //     //        log("danilo-req:comboDispatcher:will call callRCC for user " + user + " Nome " + foundConnectionUser[0].dn);
-                    //     //        callRCC(rcc, user, "UserCall", button.button_prt, foundConnectionUser[0].sip + "," + rcc.pbx);
-                    //     //    }
-                    //     //})
-                    //     var info = JSON.parse(foundConnectionUser[0].info);
-                    //     log("danilo req:comboDispatcher:info.pbx " + info.pbx);
-                    //     RCC.forEach(function (rcc) {
-                    //         if (rcc.pbx == info.pbx) {
-                    //             log("danilo req:comboDispatcher:match pbx for guid user " + foundConnectionUser[0].guid);
-                    //             var msg = { api: "RCC", mt: "UserInitialize", cn: foundConnectionUser[0].dn, hw: button.button_device, src: foundConnectionUser[0].guid + "," + rcc.pbx + "," + button.button_device + "," + filterGuid.columns.e164 + "," + button.id };
-                    //             log("danilo req:comboDispatcher: UserInitialize sent rcc msg " + JSON.stringify(msg));
-                    //             rcc.sendMessage(JSON.stringify(msg));
-                    //         }
-                    //     })
-    
-                    //     connectionsUser.forEach(function (conn) {
-                    //         log("danilo-req type User comboDispatcher:ComboCallStart conn.sip " + String(conn.guid));
-                    //         log("danilo-req comboDispatcher:ComboCallStart sip " + String(guid));
-                    //         log("FilterGuid " + JSON.stringify(filterGuid))
-                    //         if (String(conn.guid) == String(guid)) {
-                    //             log("FilterGuid e164 " + filterGuid.columns.e164)
-                    //             conn.sendMessage(JSON.stringify({ api: "user", mt: "ComboCallStart", src: conn.guid, num: filterGuid.columns.e164, btn_id: button.id }));
-                    //         }
-                    //     });
-                    // }
-                    break;
-                default:
-                    log("danilo-req comboDispatcher:page guid " + String(guid));
-                    result = sendMessage(guid, { api: "user", mt: "PageRequest", name: button.button_name, alarm: button.button_prt, btn_id: button.id, type: button.button_type })
-                    // connectionsUser.forEach(function (conn) {
-                    //     if (String(conn.guid) == String(guid)) {
-                    //         log("danilo-req comboDispatcher:page found conn.guid " + String(conn.guid));
-                    //         conn.sendMessage(JSON.stringify({ api: "user", mt: "PageRequest", name: button.button_name, alarm: button.button_prt, btn_id: button.id, type: button.button_type }));
-                    //     }
-                    // });
-                    break;
-            }
-            return result
-        }catch(e){
-            return e
-        }
-        
-    }
 
 }
-export const triggerAlarm = async (guid, prt, btn_id) => {
+export const triggerAlarm = async (guid, btn) => {
     let triggerAlarmResult = 0;
 
     try{
-        let result;
-        result = await triggerActionByStartType(guid, prt, 'alarm')
+        var actionResult = await triggerActionByStartType(guid, btn.button_prt, 'alarm')
+        log("buttonController:triggerAlarm: triggerActionByStartType alarm result " + actionResult);
+
         const btns = await db.button.findAll({
             where: {
-                button_prt: prt,
-                button_type: 'alarm'
+                button_prt: btn.button_prt,
+                button_type: 'alarm',
+                id: { [Op.ne]: parseInt(btn.id) } // Adiciona a condição de button_id diferente de id from
             }
         })
         log('buttonController:triggerAlarm: btns to notify '+ JSON.stringify(btns.length))
@@ -931,19 +815,35 @@ export const triggerAlarm = async (guid, prt, btn_id) => {
             var msg = { guid: b.button_user, from: guid, name: "alarm", date: getDateNow(), status: "inc", details: b.id, prt: b.button_prt }
             log("buttonController:triggerAlarm: will insert it on DB : " + JSON.stringify(msg));
             const resultInsert = await db.activity.create(msg)
-            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
-            
+            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.button_prt });
+            //Create Alarmed Buton
+            let obj = {from:guid, prt: b.button_prt, date: getDateNow(), btn_id:b.id}
+            const result = await db.activeAlarms.create(obj)
+            log('buttonController:triggerAlarm: activeAlarm create result id ' + result.id)
         })
-        let obj = {from:guid, prt: prt, date: getDateNow(), btn_id:btn_id}
-        result = await db.activeAlarms.create(obj)
+
+        //intert into DB the event
+        var msg = { guid: btn.button_user, from: guid, name: "alarm", date: getDateNow(), status: "start", details: btn.id, prt: btn.button_prt }
+        const resultInsertMyself = await db.activity.create(msg)
+        log("webSocketController:: will insert it on DB : " + JSON.stringify(resultInsertMyself.id));
+        send(btn.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsertMyself], max: btn.sensor_max_threshold, min: btn.sensor_min_threshold, value: btn.button_prt });
+       
+        const sendResult = await send(btn.button_user, { api: "user", mt: "AlarmReceived", btn_id: btn.id})
+        if(sendResult){triggerAlarmResult +=1}
+
+        //Create Alarmed Buton
+        let obj = {from:guid, prt: btn.button_prt, date: getDateNow(), btn_id: btn.id}
+        const result = await db.activeAlarms.create(obj)
         log('buttonController:triggerAlarm: activeAlarm create result id ' + result.id)
+        
         return triggerAlarmResult
     }catch(e){
         log('buttonController:triggerAlarm: error '+ e)
+        return false
     }
 
 }
-export const triggerStopAlarm = async (guid, prt) => {
+export const triggerStopAlarm = async (guid, btn) => {
     let triggerStopAlarmResult = 0;
 
     try{
@@ -951,56 +851,63 @@ export const triggerStopAlarm = async (guid, prt) => {
         //Alarmes
         const btns = await db.button.findAll({
             where: {
-                button_prt: prt,
+                button_prt: btn.button_prt,
                 button_type: 'alarm'
             }
         })
-        log('buttonController:TriggerStopAlarm: alarm btns '+ JSON.stringify(btns))
+        log('buttonController:TriggerStopAlarm: alarm btns '+ JSON.stringify(btns.length))
         btns.forEach(async (b)=>{
-            log('buttonController:TriggerStopAlarm: alarm btn '+ JSON.stringify(b))
+            log('buttonController:TriggerStopAlarm: alarm btn '+ JSON.stringify(b.id))
 
             const sendResult = await send(b.button_user, { api: "user", mt: "AlarmStopReceived", alarm: b.button_prt, btn_id: b.id })
             if(sendResult){triggerStopAlarmResult +=1}
 
             //intert into DB the event
-            var msg = { guid: b.button_user, from: guid, name: "alarm", date: getDateNow(), status: "stop", details: b.id, prt: prt }
-            log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
+            var msg = { guid: b.button_user, from: guid, name: "alarm", date: getDateNow(), status: "stop", details: b.id, prt: b.button_prt }
+            log("buttonController:: will insert it on DB : " + JSON.stringify(msg));
             const resultInsert = await db.activity.create(msg)
-            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
-           
+            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.button_prt });
+            //Destroy Active alarms
+            let result = await db.activeAlarms.destroy({
+                where: {
+                btn_id: parseInt(b.id),
+                },
+            });
+            log('buttonController:TriggerStopAlarm: activeAlarm destroy result '+ result)
         })
         //Sensores
-        const btnsSensor = await db.button.findAll({
+        const phisicalButtons = await db.button.findAll({
             where: {
-                sensor_type: prt,
+                button_prt: btn.button_prt,
+                sensor_type: btn.sensor_type,
+                button_device: btn.button_device,
                 button_type: 'sensor'
             }
         })
-        log('buttonController:TriggerStopAlarm: sensor btns '+ JSON.stringify(btnsSensor))
-        btnsSensor.forEach(async (b)=>{
-            log('buttonController:TriggerStopAlarm: sensor btn '+ JSON.stringify(b))
+        log('buttonController:TriggerStopAlarm: phisicalButtons '+ JSON.stringify(phisicalButtons.length))
+        phisicalButtons.forEach(async (b)=>{
+            log('buttonController:TriggerStopAlarm: phisicalButton '+ JSON.stringify(b.id))
 
             const sendResult = await send(b.button_user, { api: "user", mt: "AlarmStopReceived", alarm: b.sensor_type, btn_id: b.id })
             if(sendResult){triggerStopAlarmResult +=1}
 
             //intert into DB the event
-            var msg = { guid: b.button_user, from: guid, name: "alarm", date: getDateNow(), status: "stop", details: b.id, prt: prt }
+            var msg = { guid: b.button_user, from: guid, name: "button", date: getDateNow(), status: "stop", details: b.id, prt: b.sensor_type+'_'+b.button_device }
             log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
             const resultInsert = await db.activity.create(msg)
-            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
-           
+            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.button_prt });
+            //Destroy Active alarms
+            let result = await db.activeAlarms.destroy({
+                where: {
+                btn_id: parseInt(b.id),
+                },
+            });
+            log('buttonController:TriggerStopAlarm: activeAlarm destroy result '+ result)
         })
-
-        //Active alarms
-        let result = await db.activeAlarms.destroy({
-            where: {
-              prt: prt,
-            },
-          });
-        log('buttonController:TriggerStopAlarm: activeAlarm destroy result '+ result)
         return triggerStopAlarmResult
     }catch(e){
-        log('uttonController:TriggerStopAlarm: error '+ e)
+        log('buttonController:TriggerStopAlarm: error '+ e)
+        return false
     }
 
 }
@@ -1022,30 +929,30 @@ export const selectButtons = async (guid) => {
 }
 export const getActiveAlarmHistory = async (guid) => {
     let activeAlarms = await db.activeAlarms.findAll();
-    log("buttonController::getActiveAlarmHistory result activeAlarms= " + JSON.stringify(activeAlarms, null, 4));
+    log("alarmController::getActiveAlarmHistory result activeAlarms= " + JSON.stringify(activeAlarms, null, 4));
     let query = `
         SELECT 
           list_buttons.*, 
-          list_active_alarms.date,
-          list_active_alarms.from
+          MAX(list_active_alarms.date) AS date,
+          MAX(list_active_alarms.from) as from
         FROM 
           list_buttons
         INNER JOIN 
           list_active_alarms
         ON 
-          list_buttons.button_prt = list_active_alarms.prt
-          OR
-          list_buttons.sensor_type = list_active_alarms.prt 
-          AND 
+          list_buttons.id = list_active_alarms.btn_id
+          AND
           list_buttons.button_user = '${guid}'
+          GROUP BY
+          list_buttons.id
         `;
     let result = await db.sequelize.query(query, {
         type: QueryTypes.SELECT
     });
 
-    log("buttonController::getActiveAlarmHistory result= " + result.length + " buttons with alarm active for user "+guid);
+    log("alarmController::getActiveAlarmHistory result= " + result.length + " buttons with alarm active for user "+guid);
     result.forEach(async function(b){
-        send(guid, { api: "user", mt: "AlarmReceived", btn_id: b.id })
+        send(guid, { api: "user", mt: "AlarmReceived", btn_id: b.id})
     })
 }
 export const getControllerStatusByGuid = async (guid, buttons) => {
@@ -1096,7 +1003,7 @@ export const thresholdManager = async (obj) => {
                 const activity = await db.activity.create(objActivity);
                 // Notificar o usuário do novo alarme
                 send(b.button_user, { api: 'user', mt: 'AlarmReceived', notification: [activity], btn_id: b.id });
-                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [activity] });
+                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [activity], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.value });
            
                 // Adicionar o botão ao conjunto de alarmes ativos
                 activeAlarmSet.add(b.id);
@@ -1118,7 +1025,7 @@ export const thresholdManager = async (obj) => {
                 
                 // Notificar o usuário sobre o alarme removido
                 send(b.button_user, { api: 'user', mt: 'AlarmStopReceived', notification: [activity], alarm:b.button_prt, btn_id: b.id });
-                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [activity] });
+                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [activity], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.value });
            
                 // Remover o botão do conjunto de alarmes ativos
                 activeAlarmSet.delete(b.id);
@@ -1214,8 +1121,12 @@ function verificarThresholds(data, buttons) {
                 var value = data[entry.sensor_type];
                 // Verifica se o tipo de ação é max ou min
                 if (entry.sensor_max_threshold != "" && value >= parseInt(entry.sensor_max_threshold)) {
+                    entry.value = value;
+
                     ativos.push(entry);
                 } else if (entry.sensor_min_threshold != "" && value <= parseInt(entry.sensor_min_threshold)) {
+
+                    entry.value = value;
                     ativos.push(entry);
                 }
             }

@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { log } from './log.js';
 import process from 'process';
+import db from '../managers/databaseSequelize.js'
 const env = process.env.NODE_ENV || 'development';
 
 export async function restartService(serviceName) {
@@ -22,4 +23,19 @@ export async function restartService(serviceName) {
     } catch (error) {
         log(`Failed to restart service: ${error.message}`);
     }
+}
+export async function getSystemPreferences() {
+    try{
+        let theme = await db.config.findOne({
+            where:{
+                entry: 'theme'
+            }
+            
+        })
+        return {theme: theme.value == '' ? 'root': theme.value}
+    }catch(e){
+        log(`serviceManager:getSystemPreferences: Failed to load preferences: ${e.message}`);
+        return {theme: 'root'}
+    }
+    
 }
