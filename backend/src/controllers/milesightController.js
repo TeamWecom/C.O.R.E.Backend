@@ -1,7 +1,7 @@
 // controllers/webServerController.js
 import { send } from '../managers/webSocketManager.js';
 import { getDateNow } from '../utils/getDateNow.js';
-import { triggerActionBySensor } from './actionController.js';
+import { triggerActionByImagem, triggerActionBySensor } from './actionController.js';
 import db from '../managers/databaseSequelize.js';
 import { QueryTypes, Op, fn, col } from 'sequelize';
 import { stringToBase64 } from '../utils/typeHelpers.js';
@@ -65,7 +65,6 @@ export const receiveSensor = async (obj) => {
     }
 };
 
-
 export const receiveImage = async (obj) => {
     try {
         //log("milesightController:receiveImage: " + JSON.stringify(obj));
@@ -105,8 +104,21 @@ export const receiveImage = async (obj) => {
             });
         }
 
-        // Insere na tabela de histórico dos sensores
+        
         if(iotCam){
+            try {
+                const license = await licenseFileWithUsage();
+                if (license.openai && license.openai.total == true){
+                    const resultAction = await triggerActionByImagem(obj.values);
+                    log("milesightController:receiveImagem:triggerActionByImagem result "+resultAction);
+                }else{
+                    log("milesightController:receiveImagem: Sem licença OpenAI para triggerActionByImagem");
+                }   
+            } catch (e) {
+                log("milesightController:receiveImagem:triggerActionByImagem error "+ e);
+            }
+
+            // Insere na tabela de histórico dos sensores
             let objToInsert = { deveui: values.devMac, sensor_name: iotCam.nickname, battery: values.battery, image: values.image, date: values.date}
 
             result = await db.iotDevicesHistory.create(objToInsert);
@@ -166,10 +178,21 @@ export const receiveAlarm = async (obj) => {
                     const sendResult = await send(b.button_user, { api: "user", mt: "SmartButtonReceived", alarm: pressType, btn_id: b.id, src: obj.deveui, date: getDateNow() })
                     if(sendResult){triggerAlarmResult +=1}
                     //intert into DB the event
-                    var msg = { guid: b.button_user, from: obj.deveui, name: "button", date: getDateNow(), status: "start", details: b.id, prt: b.sensor_type+'_'+b.button_device }
-                    log("milesightController:receiveAlarm: will insert it on DB : " + JSON.stringify(msg));
-                    const resultInsert = await db.activity.create(msg)
-                    send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert], button: b });
+                    var msg = { 
+                        guid: b.button_user, 
+                        from: obj.deveui, 
+                        name: "button", 
+                        date: getDateNow(), 
+                        status: "start", 
+                        details: b.id, //details.id para obter o id que antes era direto no details
+                        prt: b.sensor_type+'_'+b.button_device, 
+                        min_threshold: b.sensor_min_threshold, 
+                        max_threshold: b.sensor_max_threshold
+                    }
+                    //log("milesightController:receiveAlarm: will insert it on DB : " + JSON.stringify(msg));
+                    let resultInsert = await db.activity.create(msg)
+                    resultInsert.details = b
+                    send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert]});
 
                     // insert active Alarmed Button for user
                     const objAlarm = { from: obj.deveui, prt: pressType, date: getDateNow(), btn_id: b.id }
@@ -285,6 +308,23 @@ export const getDevices = async () =>{
     await fetchDevices(gateways);
     return devices;
 }
+//
+// Função para retornar o gatewayId
+//
+export const findGatewayIdByDevEUI = async (gateways, targetDevEUI) =>{
+    for (const gateway of gateways) {
+      for (const [gatewayId, data] of Object.entries(gateway)) {
+        if (data.devices) {
+          for (const device of data.devices) {
+            if (device.devEUI === targetDevEUI) {
+              return gatewayId;
+            }
+          }
+        }
+      }
+    }
+    return null; // Retorna null se o device com o devEUI não for encontrado
+  }
 
 export const TriggerCommand = async(gateway_id, device, prt) => {
     try{

@@ -14,9 +14,11 @@ dotenvConfig();
 
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { getDevices, TriggerCommand } from './milesightController.js';
+import { getDevices, TriggerCommand, findGatewayIdByDevEUI } from './milesightController.js';
 import {innovaphoneMakeCall} from './innovaphoneController.js'
 import { sendEmail } from '../managers/smtpManager.js'
+
+import OpenAIApi from 'openai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -24,7 +26,11 @@ const __dirname = dirname(__filename);
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
 
-
+const openaiParamters = [
+    'openaiKey',
+    'openaiOrg',
+    'openaiProj'
+];
 
 export const triggerActionByStartType = async (from, prt, type) => {
     try {
@@ -87,6 +93,117 @@ export const triggerActionBySensor = async (obj) => {
         return false;
     }
     
+}
+export const triggerActionByImagem = async (obj) => {
+    try {
+        let result = false;
+        //Get Actions from DB
+        const actions = await db.action.findAll({
+            where: {
+                action_start_type:  'camera',
+                action_start_device: obj.devMac
+
+            },
+            raw: true
+        })
+        if (actions.length > 0) {
+            log(`actionController:triggerActionByImagem: Match Actions: ${actions.length}`);
+
+            const imageUri = await saveBase64Image(obj.image, obj.file || 'tempImg.jpg')
+            
+            for (const a of actions) {
+                const analiseResult = await imagemAnaliser(imageUri, a.action_start_prt)
+                
+                switch(analiseResult.status){
+                    case 0:
+                        log(`actionController:triggerActionByImagem:imagemAnaliser: result OK?? ${analiseResult.msg}`)
+                        break;
+                    case 1:
+                        log(`actionController:triggerActionByImagem:imagemAnaliser: result NOK?? ${analiseResult.msg}`)
+                        //Atualiza a ação para envio de notificação coerente com a causa da ação analisada
+                        a.action_start_device_parameter = analiseResult.msg;
+
+                        const resultAction = await resolveAction(obj.devMac, [a])
+                        if(resultAction){ result = resultAction}
+                        break;
+                    case 2:
+                        log(`actionController:triggerActionByImagem:imagemAnaliser: result unknown?? ${analiseResult.msg}`)
+                        break;
+                    default:
+                        log(`actionController:triggerActionByImagem:imagemAnaliser: result WTF?? ${analiseResult.status} MSG: ${analiseResult.msg}`)
+                        break;
+                }
+            }
+            log(`actionController:triggerActionByImagem:imagemAnaliser: after analise delete image result ${deleteImage(obj.file || 'tempImg.jpg')}`)
+            return result;
+            
+        }
+        else {
+            //log("actionController:triggerActionByStartType:actions is null " + JSON.stringify(actions));
+            return false;
+        }
+    }
+    catch (e) {
+        log("actionController:triggerActionByImagem: Try Body decode Erro " + e);
+        return false;
+    }
+}
+//
+// Função para salvar a imagem base64 em um arquivo
+//
+function saveBase64Image(base64Image, fileName) {
+    try{
+        // Define o diretório onde os arquivos estáticos serão servidos
+        const staticDir = path.join(__dirname, '../httpfiles/images');
+        // Remover o prefixo data:image/jpeg;base64, ou outro tipo de dados, se presente
+        const matches = base64Image.match(/^data:(.+);base64,(.+)$/);
+        if (!matches) {
+            throw new Error("Formato de base64 inválido.");
+        }
+
+        const imageBuffer = Buffer.from(matches[2], 'base64');
+
+        // Certifique-se de que o diretório existe
+        if (!fs.existsSync(staticDir)) {
+            fs.mkdirSync(staticDir, { recursive: true });
+        }
+
+        // Defina o caminho completo do arquivo
+        const filePath = path.join(staticDir, fileName);
+
+        // Salvar o arquivo
+        fs.writeFileSync(filePath, imageBuffer);
+
+        // Retorna o caminho relativo
+        return `https://${process.env.BACKEND_URL}/api/images/${fileName}`;
+
+    }catch(e){
+
+        return
+    }
+}
+//
+// Função para excluir a imagem após análise
+//
+function deleteImage(fileName) {
+    try {
+        // Define o diretório onde os arquivos estão armazenados
+        const staticDir = path.join(__dirname, '../httpfiles/images');
+        
+        // Define o caminho completo do arquivo
+        const filePath = path.join(staticDir, fileName);
+
+        // Verifica se o arquivo existe
+        if (fs.existsSync(filePath)) {
+            // Exclui o arquivo
+            fs.unlinkSync(filePath);
+            return true;
+        } else {
+            return false;
+        }
+    } catch (error) {
+        return false;
+    }
 }
 //
 // Função para tratar as ações com base no JSON recebido
@@ -155,23 +272,7 @@ async function resolveAction(from, actions){
     }
     
 }
-
-function findGatewayIdByDevEUI(gateways, targetDevEUI) {
-    for (const gateway of gateways) {
-      for (const [gatewayId, data] of Object.entries(gateway)) {
-        if (data.devices) {
-          for (const device of data.devices) {
-            if (device.devEUI === targetDevEUI) {
-              return gatewayId;
-            }
-          }
-        }
-      }
-    }
-    return null; // Retorna null se o device com o devEUI não for encontrado
-  }
 //
-
 // Função para verificar as ações com base no sensor recebido
 //
 function verificarAcoes(data, actions) {
@@ -184,6 +285,8 @@ function verificarAcoes(data, actions) {
             // Verifica se o tipo de sensor corresponde
             if (data.hasOwnProperty(entry.action_start_device_parameter)) {
                 var value = data[entry.action_start_device_parameter];
+                // atualiza para o valor recebido no evento
+                entry.action_start_device_parameter = value;
                 // Verifica se o tipo de ação é max ou min
                 if (entry.action_start_type == "maxValue" && value >= parseInt(entry.action_start_prt)) {
                     acoes.push(entry);
@@ -198,7 +301,9 @@ function verificarAcoes(data, actions) {
     log("actionController:verificarAcoes:return "+ acoes.length +" actions!")
     return acoes;
 }
-
+//
+// Função para confecção da chamada a ser executada com base na ação executada
+//
 async function makeCall(action){
     try{
         let pbxType = await db.config.findOne({
@@ -235,7 +340,9 @@ async function makeCall(action){
         return e
     }  
 }
-
+//
+// Função para envio de emails e notificações para os usuários quando uma ação é executada
+//
 async function notifyUsersAboutActionExecution(from, action){
     try{
 
@@ -244,6 +351,13 @@ async function notifyUsersAboutActionExecution(from, action){
         if(users.length > 0){
 
             const create_user = users.find(u => u.guid === action.create_user);
+            let exec_prt_translated = action.action_exec_prt
+            if(action.action_exec_type == 'button'){
+                const button = await db.button.findOne({where:{
+                    id : parseInt(action.action_exec_prt)
+                }})
+                exec_prt_translated = button.button_name;
+            }
 
             users.forEach(async u => {
                 //Notificação no e-mail
@@ -326,14 +440,14 @@ async function notifyUsersAboutActionExecution(from, action){
                             <p>Olá ${u.name},abaixo você tem informações sobre a ação executada:</p>
                             <p class="link" >Nome da ação: ${action.action_name}</p>
                             <br/>
-                            <p>Gatilho:</p>
+                            <p>Gatilho</p>
                             <p>Tipo: ${action.action_start_type}</p>
                             <p>Parametro: ${action.action_start_device_parameter}</p>
                             <p>Valor: ${action.action_start_prt}</p>
                             <br/><br/>
-                            <p>Execução:</p>
+                            <p>Execução</p>
                             <p>Ação: ${action.action_exec_type}</p>
-                            <p>Parametro: ${action.action_exec_prt}</p>
+                            <p>Parametro: ${exec_prt_translated}</p>
                             <br/>
                             <p>Criado por: ${create_user.name}</p>
                         </div>
@@ -347,8 +461,19 @@ async function notifyUsersAboutActionExecution(from, action){
                 if(action.action_exec_user != '' && action.action_exec_user == u.guid){
 
                     //Notificação no Histórico da console
-                    var msg = { guid: action.action_exec_user, from: from, name: action.action_exec_type, date: getDateNow(), status: "start", prt: action.action_exec_prt, details: action.id }
-                    var insertActivityResult = await db.activity.create(msg)
+                    var msg = { 
+                        guid: action.action_exec_user, 
+                        from: from, 
+                        name: 'action', 
+                        date: getDateNow(), 
+                        status: "start", 
+                        prt: action.action_start_device_parameter, 
+                        details: action.id, //details.id para obter o id da ação executada e outros parâmetros
+                        min_threshold: action.action_start_prt, 
+                        max_threshold: action.action_start_prt, 
+                    }
+                    let insertActivityResult = await db.activity.create(msg)
+                    insertActivityResult.details = action
                     send(action.action_exec_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] })
 
                     // Send the reset email with the token
@@ -356,8 +481,19 @@ async function notifyUsersAboutActionExecution(from, action){
                 }
                 if(action.action_exec_user == ''){
                     //Notificação no Histórico da console
-                    var msg = { guid: u.guid, from: from, name: action.action_exec_type, date: getDateNow(), status: "start", prt: action.action_exec_prt, details: action.id }
-                    var insertActivityResult = await db.activity.create(msg)
+                    var msg = { 
+                        guid: u.guid, 
+                        from: from, 
+                        name: 'action', 
+                        date: getDateNow(), 
+                        status: "start", 
+                        prt: action.action_start_device_parameter,
+                        details: action.id, 
+                        min_threshold: action.action_start_prt, 
+                        max_threshold: action.action_start_prt, 
+                    }
+                    let insertActivityResult = await db.activity.create(msg)
+                    insertActivityResult.details = action
                     send(u.guid, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] })
 
                     // Send the reset email with the token
@@ -367,5 +503,77 @@ async function notifyUsersAboutActionExecution(from, action){
         }
     }catch(e){
         log("actionController:notifyUsersAboutActionExecution: erro " + e);
+    }
+}
+//
+// Função para Verificar no ChatGPT se a imagem está de acordo com as definições necessárias
+//
+async function imagemAnaliser(image, customPrompt) {
+    
+    // Faz uma consulta ao banco de dados para pegar todas as entradas correspondentes
+    const configs = await db.config.findAll({
+        where: {
+        entry: openaiParamters
+        }
+    });
+    // Transforma o resultado em um objeto chave-valor
+    const openaiConfigObj = {};
+    configs.forEach(config => {
+    openaiConfigObj[config.entry] = config.value;
+    });
+    log(`actionController:openaiConfigObj ${JSON.stringify(openaiConfigObj)}`)
+
+    const openai = new OpenAIApi({
+        apiKey: openaiConfigObj.openaiKey,
+        organization: openaiConfigObj.openaiOrg,
+        project: openaiConfigObj.openaiProj,
+    });
+
+    let systemPrompt;
+    if(customPrompt){
+        systemPrompt = `Você é um engenheiro de segurança do trabalho e deve analisar as imagens de trabalhadores em seu dia a dia de trabalho, retornando como resposta:
+        0 = Com EPIs adequados, 1 = sem EPI adequado ou 2 = não identificado.
+        
+        Pergunta: "${customPrompt}"
+    
+        As respostas devem ser exclusivamente:
+        {"status":0, "msg": "ok"}, {"status":1, "msg": "<motivo da reprovação>"} ou {"status":2, "msg": "<motivo da incerteza>"}.
+      `;
+
+    }else{
+        systemPrompt = `Você é um engenheiro de segurança do trabalho e deve analisar as imagens de trabalhadores em seu dia a dia de trabalho, retornando como resposta:
+        0 = Com EPIs adequados, 1 = sem EPI adequado ou 2 = não identificado.
+        
+        Pergunta: "O funcionário da empresa que está desempanhando o trabalho está usando os EPIs básicos para a execução daquela atividade em questão?"
+    
+        As respostas devem ser exclusivamente:
+        {"status":0, "msg": "ok"}, {"status":1, "msg": <motivo da reprovação>} ou {"status":2, "msg": <motivo da incerteza>}.
+      `;
+    }
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: systemPrompt },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      "url": image,
+                    },
+                  },
+                ],
+              },
+            ],
+          });
+        
+        const result = await response.choices[0].message.content;
+        log('actionController:imagemAnaliser: Resultado da análise:'+ result);
+        return JSON.parse(result);
+    } catch (error) {
+      log('actionController:imagemAnaliser: Erro na análise da imagem:' + error);
+      return {status:2, msg: error}
     }
 }

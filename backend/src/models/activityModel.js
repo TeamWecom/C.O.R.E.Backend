@@ -19,7 +19,9 @@ Activity.init({
     date: DataTypes.DATE,
     status: DataTypes.STRING,
     prt: DataTypes.STRING,
-    details: DataTypes.STRING
+    details: DataTypes.TEXT,
+    min_threshold: DataTypes.TEXT,
+    max_threshold: DataTypes.TEXT
   }, {
     sequelize: db.sequelize,
     modelName: 'activity',

@@ -121,6 +121,12 @@ export const licenseFileWithUsage = async() =>{
     if (lic['alexa'] !== undefined) {
         lic['alexa'] = { total: lic['alexa'], used: lic['alexa'] };
     }
+    if (lic['openai'] !== undefined) {
+        lic['openai'] = { total: lic['openai'], used: lic['openai'] };
+    }
+    if (lic['flic'] !== undefined) {
+        lic['flic'] = { total: lic['flic'], used: lic['flic'] };
+    }
     return lic;
     
 }

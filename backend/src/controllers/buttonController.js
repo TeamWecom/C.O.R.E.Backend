@@ -806,27 +806,50 @@ export const triggerAlarm = async (guid, btn) => {
         })
         log('buttonController:triggerAlarm: btns to notify '+ JSON.stringify(btns.length))
         btns.forEach(async (b)=>{
-            log('buttonController:triggerAlarm: btn '+ JSON.stringify(b))
+            log('buttonController:triggerAlarm: processing btn id '+ JSON.stringify(b))
 
             const sendResult = await send(b.button_user, { api: "user", mt: "AlarmReceived", btn_id: b.id})
             if(sendResult){triggerAlarmResult +=1}
 
             //intert into DB the event
-            var msg = { guid: b.button_user, from: guid, name: "alarm", date: getDateNow(), status: "inc", details: b.id, prt: b.button_prt }
-            log("buttonController:triggerAlarm: will insert it on DB : " + JSON.stringify(msg));
-            const resultInsert = await db.activity.create(msg)
-            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.button_prt });
+            var msg = { 
+                guid: b.button_user, 
+                from: guid, 
+                name: "alarm", 
+                date: getDateNow(), 
+                status: "inc", 
+                details: b.id, 
+                prt: b.button_prt, 
+                min_threshold: b.sensor_min_threshold, 
+                max_threshold: b.sensor_max_threshold, 
+            }
+            //log("buttonController:triggerAlarm: will insert it on DB : " + JSON.stringify(msg));
+            let resultInsert = await db.activity.create(msg)
+            resultInsert.details = b
+            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert]});
             //Create Alarmed Buton
             let obj = {from:guid, prt: b.button_prt, date: getDateNow(), btn_id:b.id}
-            const result = await db.activeAlarms.create(obj)
-            log('buttonController:triggerAlarm: activeAlarm create result id ' + result.id)
+            const insertedAlarm = await db.activeAlarms.create(obj)
+            log('buttonController:triggerAlarm: activeAlarm create result id ' + insertedAlarm.id)
         })
 
         //intert into DB the event
-        var msg = { guid: btn.button_user, from: guid, name: "alarm", date: getDateNow(), status: "start", details: btn.id, prt: btn.button_prt }
-        const resultInsertMyself = await db.activity.create(msg)
-        log("webSocketController:: will insert it on DB : " + JSON.stringify(resultInsertMyself.id));
-        send(btn.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsertMyself], max: btn.sensor_max_threshold, min: btn.sensor_min_threshold, value: btn.button_prt });
+        var msg = { 
+            guid: btn.button_user, 
+            from: guid, 
+            name: "alarm", 
+            date: getDateNow(), 
+            status: "start", 
+            details: btn.id, 
+            prt: btn.button_prt, 
+            min_threshold: btn.sensor_min_threshold, 
+            max_threshold: btn.sensor_max_threshold 
+        }
+        let resultActivityMyself = await db.activity.create(msg)
+        resultActivityMyself.details = btn
+
+        log("webSocketController:: will insert it on DB : " + JSON.stringify(resultActivityMyself.id));
+        send(btn.button_user, { api: "user", mt: "getHistoryResult", result: [resultActivityMyself]});
        
         const sendResult = await send(btn.button_user, { api: "user", mt: "AlarmReceived", btn_id: btn.id})
         if(sendResult){triggerAlarmResult +=1}
@@ -852,7 +875,9 @@ export const triggerStopAlarm = async (guid, btn) => {
         const btns = await db.button.findAll({
             where: {
                 button_prt: btn.button_prt,
-                button_type: 'alarm'
+                button_type: {
+                    [Op.or]: ['alarm', 'flic']
+                }
             }
         })
         log('buttonController:TriggerStopAlarm: alarm btns '+ JSON.stringify(btns.length))
@@ -863,10 +888,21 @@ export const triggerStopAlarm = async (guid, btn) => {
             if(sendResult){triggerStopAlarmResult +=1}
 
             //intert into DB the event
-            var msg = { guid: b.button_user, from: guid, name: "alarm", date: getDateNow(), status: "stop", details: b.id, prt: b.button_prt }
-            log("buttonController:: will insert it on DB : " + JSON.stringify(msg));
-            const resultInsert = await db.activity.create(msg)
-            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.button_prt });
+            var msg = { 
+                guid: b.button_user, 
+                from: guid, 
+                name: b.button_type == 'alarm' ? b.button_type : 'button', 
+                date: getDateNow(), 
+                status: "stop", 
+                details: b.id, 
+                prt: b.button_prt, 
+                min_threshold: b.sensor_min_threshold, 
+                max_threshold: b.sensor_max_threshold
+            }
+            //log("buttonController:: will insert it on DB : " + JSON.stringify(msg));
+            let resultInsert = await db.activity.create(msg)
+            resultInsert.details = b
+            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert]});
             //Destroy Active alarms
             let result = await db.activeAlarms.destroy({
                 where: {
@@ -892,10 +928,21 @@ export const triggerStopAlarm = async (guid, btn) => {
             if(sendResult){triggerStopAlarmResult +=1}
 
             //intert into DB the event
-            var msg = { guid: b.button_user, from: guid, name: "button", date: getDateNow(), status: "stop", details: b.id, prt: b.sensor_type+'_'+b.button_device }
-            log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-            const resultInsert = await db.activity.create(msg)
-            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.button_prt });
+            var msg = { 
+                guid: b.button_user, 
+                from: guid, 
+                name: "button", 
+                date: getDateNow(), 
+                status: "stop", 
+                details: b.id, 
+                prt: b.sensor_type+'_'+b.button_device, 
+                min_threshold: b.sensor_min_threshold, 
+                max_threshold: b.sensor_max_threshold
+            }
+            //log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
+            let resultInsert = await db.activity.create(msg)
+            resultInsert.details = b
+            send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert]});
             //Destroy Active alarms
             let result = await db.activeAlarms.destroy({
                 where: {
@@ -999,11 +1046,23 @@ export const thresholdManager = async (obj) => {
                 const objAlarm = { from: obj.deveui, prt: b.sensor_type, date: getDateNow(), btn_id: b.id };
                 await db.activeAlarms.create(objAlarm);
 
-                const objActivity = {guid: b.button_user, from: obj.deveui, name: 'threshold', date: getDateNow(), status: 'start', prt: b.sensor_type, details: b.id };
-                const activity = await db.activity.create(objActivity);
+                const objActivity = {
+                    guid: b.button_user, 
+                    from: obj.deveui, 
+                    name: 'threshold', 
+                    date: getDateNow(), 
+                    status: 'start', 
+                    prt: obj[b.sensor_type], 
+                    details: b.id, 
+                    min_threshold: b.sensor_min_threshold, 
+                    max_threshold: b.sensor_max_threshold 
+                };
+                let resultInsert = await db.activity.create(objActivity);
                 // Notificar o usuário do novo alarme
-                send(b.button_user, { api: 'user', mt: 'AlarmReceived', notification: [activity], btn_id: b.id });
-                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [activity], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.value });
+                send(b.button_user, { api: 'user', mt: 'AlarmReceived', notification: [resultInsert], btn_id: b.id });
+                
+                resultInsert.details = b
+                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert]});
            
                 // Adicionar o botão ao conjunto de alarmes ativos
                 activeAlarmSet.add(b.id);
@@ -1020,12 +1079,24 @@ export const thresholdManager = async (obj) => {
                     btn_id: b.id
                 }
                 });
-                const objActivity = {guid: b.button_user, from: obj.deveui, name: 'threshold', date: getDateNow(), status: 'stop', prt: b.sensor_type, details: b.id };
-                const activity = await db.activity.create(objActivity);
+                const objActivity = {
+                    guid: b.button_user, 
+                    from: obj.deveui, 
+                    name: 'threshold', 
+                    date: getDateNow(), 
+                    status: 'stop', 
+                    prt: obj[b.sensor_type], 
+                    details: b.id, //list_buttons.id para obter o botão que estourou o threshold
+                    min_threshold: b.sensor_min_threshold, 
+                    max_threshold: b.sensor_max_threshold 
+                };
+                let resultInsert = await db.activity.create(objActivity);
                 
                 // Notificar o usuário sobre o alarme removido
-                send(b.button_user, { api: 'user', mt: 'AlarmStopReceived', notification: [activity], alarm:b.button_prt, btn_id: b.id });
-                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [activity], max: b.sensor_max_threshold, min: b.sensor_min_threshold, value: b.value });
+                send(b.button_user, { api: 'user', mt: 'AlarmStopReceived', notification: [resultInsert], alarm:b.button_prt, btn_id: b.id });
+                
+                resultInsert.details = b
+                send(b.button_user, { api: "user", mt: "getHistoryResult", result: [resultInsert]});
            
                 // Remover o botão do conjunto de alarmes ativos
                 activeAlarmSet.delete(b.id);
@@ -1157,3 +1228,4 @@ function getDegreeRange(direction) {
         return { min: 0, max: 0 };
     }
 }
+

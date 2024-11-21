@@ -24,7 +24,9 @@ module.exports = {
       date: Sequelize.DATE,
       status: Sequelize.STRING,
       prt: Sequelize.STRING,
-      details: Sequelize.STRING
+      details: Sequelize.TEXT,
+      min_threshold: Sequelize.TEXT,
+      max_threshold: Sequelize.TEXT
     });
   },
 

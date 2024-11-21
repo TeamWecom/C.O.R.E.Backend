@@ -777,6 +777,33 @@ export const callEvents = async (obj) => {
                             { where: { id: parseInt(call.id) } } // Condição para atualização
                         );
                         log("innovaphoneController:callEvents:CallDisconnected:callToUpdateResult "+callToUpdateResult)
+                        //intert into DB the event
+                        var msg = { 
+                            guid: user.guid, 
+                            from: obj.num, 
+                            name: "call", 
+                            date: getDateNow(), 
+                            status: "stop", 
+                            details: call.id, 
+                            prt: obj.num 
+                        }
+                        //log("innovaphoneController:callEvents:CallRinging will insert it on DB : " + JSON.stringify(msg));
+                        let resultInsert = await db.activity.create(msg)
+                        const detail = await db.call.findOne({where:{
+                            id:parseInt(call.id)
+                        }})
+                        let finalCall =  detail.toJSON();
+                        returnRecordLink([finalCall])
+                            .then(async(result) =>{
+                                finalCall = result[0]
+                                resultInsert.details = finalCall
+                                send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+                            })
+                            .catch(async(e)=>{
+                                log(`actionsUtils:returnRecordLink: error ${e}`)
+                                send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+                            })
+                        
                     }
                 }else{
                     const call = await db.call.findOne({
@@ -800,6 +827,32 @@ export const callEvents = async (obj) => {
                             { where: { id: parseInt(call.id) } } // Condição para atualização
                         );
                         log("innovaphoneController:callEvents:IncomingCallDisconnected:callToUpdateResult "+callToUpdateResult)
+                        //intert into DB the event
+                        var msg = { 
+                            guid: user.guid, 
+                            from: obj.num, 
+                            name: "call", 
+                            date: getDateNow(), 
+                            status: "stop", 
+                            details: call.id, 
+                            prt: obj.num 
+                        }
+                        //log("innovaphoneController:callEvents:CallRinging will insert it on DB : " + JSON.stringify(msg));
+                        let resultInsert = await db.activity.create(msg)
+                        const detail = await db.call.findOne({where:{
+                            id:parseInt(call.id)
+                        }})
+                        let finalCall =  detail.toJSON();
+                        returnRecordLink([finalCall])
+                            .then(async(result) =>{
+                                finalCall = result[0]
+                                resultInsert.details = finalCall
+                                send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+                            })
+                            .catch(async(e)=>{
+                                log(`actionsUtils:returnRecordLink: error ${e}`)
+                                send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+                            })
                     }
                     const usersInn = await pbxTableUsers()
                     const userInn = usersInn.filter(u => u.guid == obj.guid )[0]
@@ -855,13 +908,6 @@ export const callEvents = async (obj) => {
                         { where: { id: parseInt(call.id) } } // Condição para atualização
                     );
                     log("innovaphoneController:callEvents::callToUpdateResult "+callToUpdateResult)
-                    
-                    //intert into DB the event
-                    var msg = { guid: user.guid, from: obj.num, name: "call", date: getDateNow(), status: "out", details: call.id, prt: obj.num }
-                    log("innovaphoneController:callEvents:CallRinging will insert it on DB : " + JSON.stringify(msg));
-                    const resultInsert = await db.activity.create(msg)
-                    send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
-           
                 }
             }
         }
@@ -885,7 +931,7 @@ export const callEvents = async (obj) => {
                     ]
                   });
                 if(!call){
-                    let result = await db.call.create({
+                    let resultCall = await db.call.create({
                         guid: user.guid,
                         number: obj.num,
                         call_started: getDateNow(),
@@ -895,15 +941,10 @@ export const callEvents = async (obj) => {
                         direction: "inc",
                         device: obj.device
                     })
-                    log("innovaphoneController:callEvents:IncomingCallRinging: db.create.call success " + result.id);
-                    //intert into DB the event
-                    var msg = { guid: user.guid, from: obj.num, name: "call", date: getDateNow(), status: "inc", details: result.id, prt: obj.num }
-                    log("innovaphoneController:callEvents:IncomingCallRinging: will insert it on DB : " + JSON.stringify(msg));
-                    const resultInsert = await db.activity.create(msg)
-                    send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
+                    log("innovaphoneController:callEvents:IncomingCallRinging: db.create.call success " + resultCall.id);
            
                 }else{
-                    log("innovaphoneController:callEvents:IncomingCallRinging: call already exist on DB with id " + result.id);
+                    log("innovaphoneController:callEvents:IncomingCallRinging: call already exist on DB with id " + call.id);
                 }
                 
                 const usersInn = await pbxTableUsers()

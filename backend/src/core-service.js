@@ -225,11 +225,17 @@ mqttRoutes(broker);
 //#endregion
 
 //Rota da Alexa
-app.use('/api/alexa', AlexaRouter);
+if(decryptedLicense && decryptedLicense.alexa == true){
+    log(`core-service:decryptedLicenseFile.alexa ${decryptedLicense.alexa}`);
+    app.use('/api/alexa', AlexaRouter);
+}
 
 
 //Rota do Flic
-app.use('/api/flic', FlicRouter);
+if(decryptedLicense && decryptedLicense.flic == true){
+    log(`core-service:decryptedLicenseFile.flic ${decryptedLicense.flic}`);
+    app.use('/api/flic', FlicRouter);
+}
 
 //Recria rotina de Backups
 checkBackupRoutine();

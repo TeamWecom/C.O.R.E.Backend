@@ -41,6 +41,7 @@ import { licenseFileWithUsage,
     encryptLicenseFile
 } from './licenseController.js';
 import { restartService } from '../utils/serviceManager.js'
+import { getDetailsForActivity } from '../utils/actionsUtils.js'
 let license = { Users: 10 }; // Licença temporária
 
 export const handleConnection = async (conn, req) => {
@@ -117,9 +118,18 @@ export const handleConnection = async (conn, req) => {
                             const resultSend = await send(obj.to, { api: "user", mt: "Message", src: conn.guid, msg: obj.msg, id: resultInsertMessage.id, result: [resultInsertMessage] })
                             conn.send(JSON.stringify({api: "user", mt: "MessageResult", delivered: resultSend, msg_id: resultInsertMessage.id, result: [resultInsertMessage]}))
                             //intert into DB the event
-                            var msg = { guid: obj.to, from: conn.guid, name: "message", date: getDateNow(), status: "inc", details: resultInsertMessage.id, prt: obj.msg }
-                            log("webSocketController:Message: will insert it on DB : " + JSON.stringify(msg));
-                            const resultInsert = await db.activity.create(msg)
+                            var msg = { 
+                                guid: obj.to, 
+                                from: conn.guid, 
+                                name: "message", 
+                                date: getDateNow(), 
+                                status: "inc", 
+                                details: resultInsertMessage.id, 
+                                prt: obj.msg 
+                            }
+                            //log("webSocketController:Message: will insert it on DB : " + JSON.stringify(msg));
+                            let resultInsert = await db.activity.create(msg)
+                            resultInsert.details = resultInsertMessage
                             send(obj.to, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                         }
                     }
@@ -311,8 +321,11 @@ export const handleConnection = async (conn, req) => {
                             order: [['id', 'desc']],
                             limit: 50
                         });
+
+                        // Mapeia e processa cada item do histórico para substituir 'details' conforme necessário
+                        const processedHistory = await Promise.all(history.map(getDetailsForActivity));
                     
-                        conn.send(JSON.stringify({ api: "user", mt: "getHistoryResult", src: obj.src, result: history }));
+                        conn.send(JSON.stringify({ api: "user", mt: "getHistoryResult", src: obj.src, result: processedHistory }));
                     }
                     //#endregion
                     //#region PÁGINAS
@@ -482,38 +495,43 @@ export const handleConnection = async (conn, req) => {
                         return;
                     }
                     if (obj.mt == "TriggerStartOpt") { //Chamado quando usuário ativa uma Opt
+                        const btn = await db.button.findOne({where:{
+                            id: obj.btn_id
+                        }})
                         //intert into DB the event
-                        var msg = { guid: conn.guid, from:conn.guid, name: "opt", date: getDateNow(), status: "open", prt: obj.prt, details: obj.btn_id }
+                        var msg = { 
+                            guid: conn.guid, 
+                            from:conn.guid, 
+                            name: "opt", 
+                            date: getDateNow(), 
+                            status: "open", 
+                            prt: obj.prt, 
+                            details: btn.id
+                        }
                         log("webSocketController:TriggerStartOpt: will insert it on DB : " + JSON.stringify(msg));
                         var result = await db.activity.create(msg)
-                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [result] });
                         conn.send(JSON.stringify({ api: "user", mt: "TriggerStartOptResult", src: result }));
                     }
                     if (obj.mt == "TriggerCombo") {
                         //trigger the combo function
                         var result = await comboManager(parseInt(obj.btn_id), conn.guid, obj.mt);
                         //intert into DB the event
-                        log("webSocketController:: insert into DB = user " + conn.guid);
+                        const btn = await db.button.findOne({where:{
+                            id: obj.btn_id
+                        }})
     
-                        var msg = { guid: conn.guid, from: conn.guid, name: "combo", date: today, status: "start", prt: obj.prt, details: obj.btn_id }
+                        var msg = { 
+                            guid: conn.guid, 
+                            from: conn.guid, 
+                            name: "combo", 
+                            date: today, 
+                            status: "start", 
+                            prt: obj.prt, 
+                            details: btn.id 
+                        }
                         var resultInsert = await db.activity.create(msg)
                         conn.send(JSON.stringify(result));
-                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                         log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                        //insertTblActivities(msg);
-                    }
-                    if (obj.mt == "StopCombo") {
-                        //trigger the combo function
-                        //var result = comboManager(parseInt(obj.btn_id), conn.guid, obj.mt);
-                        //intert into DB the event
-                        log("webSocketController:: insert into DB = user " + conn.guid);
-    
-                        var msg = { guid: conn.guid, from: conn.guid, name: "combo", date: today, status: "stop", prt: obj.prt, details: obj.btn_id }
-                        log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                        var resultInsert = await db.activity.create(msg)
-                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
-                        //respond success to the client
-                        conn.send(JSON.stringify({ api: "user", mt: "ComboSuccessTrigged", src: obj.prt, btn_id: String(obj.btn_id) }));
                     }
                     if (obj.mt == "SelectButtons") { //Chamado quando o app é aberto e retorna todos os botões do usuário
                         selectButtons(conn.guid)
@@ -538,11 +556,6 @@ export const handleConnection = async (conn, req) => {
                             //callHTTPSServer(parseInt(obj.prt), conn.guid);
                         }
                         
-                        //intert into DB the event
-                        //var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "out", details: btn.id, prt: obj.prt }
-                        //log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                        //const resultInsert = await db.activity.create(msg)
-                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                         conn.send(JSON.stringify({ api: "user", mt: "TriggerAlarmResult", result: TriggerAlarmResult, src: obj.src }));
                     }
                     if (obj.mt == "TriggerStopAlarm") { //Chamado quando o usuário pressiona um Botão de alarme na tela
@@ -565,14 +578,6 @@ export const handleConnection = async (conn, req) => {
                             log('TriggerStopAlarm urlalamrserver result '+ sendResult)
                             //callHTTPSServer(parseInt(obj.prt), conn.guid);
                         }
-
-                        
-
-                        //intert into DB the event
-                        //var msg = { guid: conn.guid, from: conn.guid, name: "alarm", date: getDateNow(), status: "stop", details: btn.id, prt: obj.prt }
-                        //log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
-                        //const resultInsert = await db.activity.create(msg)
-                        //send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
            
                         conn.send(JSON.stringify({ api: "user", mt: "TriggerStopAlarmResult", result: TriggerStopAlarmResult, btn_id: obj.btn_id, src: obj.src }));
                     }
@@ -655,10 +660,19 @@ export const handleConnection = async (conn, req) => {
                         //intert into DB the event
                         log("webSocketController:TriggerCommand insert into DB = user " + conn.dn);
 
-                        var msg = { guid: conn.guid, from: conn.guid, name: "command", date: getDateNow(), status: "out", details: btn.id, prt: btn.button_prt }
-                        log("webSocketController:TriggerCommand will insert it on DB : " + JSON.stringify(msg));
-                        const resultInsert = await db.activity.create(msg)
-                        log("webSocketController:TriggerCommand inserted it on DB result id: " + JSON.stringify(resultInsert.id));
+                        var msg = { 
+                            guid: conn.guid, 
+                            from: conn.guid, 
+                            name: "command", 
+                            date: getDateNow(), 
+                            status: "out", 
+                            details: btn.id, 
+                            prt: btn.button_prt 
+                        }
+                        //log("webSocketController:TriggerCommand will insert it on DB : " + JSON.stringify(msg));
+                        let resultInsert = await db.activity.create(msg)
+                        resultInsert.details = btn
+                        //log("webSocketController:TriggerCommand inserted it on DB result id: " + JSON.stringify(resultInsert.id));
                         send(conn.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                     }
                     //#endregion
@@ -816,6 +830,28 @@ export const handleConnection = async (conn, req) => {
                             log('webSocketController:UpdateConfigSmtp: config atualizado com sucesso!');
                           } catch (error) {
                             log('webSocketController:UpdateConfigSmtp: Erro ao atualizar config:'+ error);
+                          }
+
+                        const updateConfigResult = await db.config.findAll();
+                        conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: updateConfigResult }));
+                    }
+                    if (obj.mt == "UpdateConfigOpenAI") {
+                        const backupFields = {
+                            "openaiKey": obj.openaiKey,
+                            "openaiOrg": obj.openaiOrg,
+                            "openaiProj": obj.openaiProj,
+                          };
+                        
+                          try {
+                            for (const [entry, value] of Object.entries(backupFields)) {
+                              // Atualizar ou criar se não existir
+                              await db.config.update({ value }, {
+                                where: { entry }
+                              });
+                            }
+                            log('webSocketController:UpdateConfigOpenAI: Config atualizado com sucesso!');
+                          } catch (error) {
+                            log('webSocketController:UpdateConfigOpenAI: Erro ao atualizar config:'+ error);
                           }
 
                         const updateConfigResult = await db.config.findAll();

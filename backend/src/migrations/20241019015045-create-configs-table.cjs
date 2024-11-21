@@ -43,7 +43,11 @@ module.exports = {
       { id: 23, entry: 'smtpSecure', value: '' },
       { id: 24, entry: 'smtpHost', value: '' },
       { id: 25, entry: 'smtpPort', value: '' },
-      { id: 26, entry: 'theme', value: '' }
+      { id: 26, entry: 'theme', value: '' },
+      { id: 27, entry: 'openaiKey', value: '' },
+      { id: 28, entry: 'openaiOrg', value: '' },
+      { id: 29, entry: 'openaiProj', value: '' },
+      { id: 30, entry: 'flicSecretApi', value: '' }
     ], {});
   },
 
