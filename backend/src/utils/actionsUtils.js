@@ -34,12 +34,12 @@ export const getDetailsForActivity = async (activity) => {
                 try{
                     detail = result[0]
                 }catch(e){
-                    log('erro'+e)
+                    log('actionsUtils:getDetailsForActivity:returnRecordLink: result error '+e)
                 }
                 
             })
             .catch(async(e)=>{
-                log(`actionsUtils:returnRecordLink: error ${e}`)
+                log(`actionsUtils:getDetailsForActivity:returnRecordLink: rejected error ${e}`)
             })
         }
         //log(`actionsUtils: detail ${JSON.stringify(detail)}`)
@@ -49,7 +49,7 @@ export const getDetailsForActivity = async (activity) => {
             details: detail ? detail : activity.details
         };
     }catch(e){
-        log(`actionsUtils: error ${e}`)
+        log(`actionsUtils:getDetailsForActivity: error ${e}`)
 
     }
 };
