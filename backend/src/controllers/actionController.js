@@ -17,7 +17,7 @@ import { dirname } from 'path';
 import { getDevices, TriggerCommand, findGatewayIdByDevEUI } from './milesightController.js';
 import {innovaphoneMakeCall} from './innovaphoneController.js'
 import { sendEmail } from '../managers/smtpManager.js'
-
+import {openAIRequestImagemAnaliser} from '../utils/openAiUtils.js';
 import OpenAIApi from 'openai';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -112,7 +112,7 @@ export const triggerActionByImagem = async (obj) => {
             const imageUri = await saveBase64Image(obj.image, obj.file || 'tempImg.jpg')
             
             for (const a of actions) {
-                const analiseResult = await imagemAnaliser(imageUri, a.action_start_prt)
+                const analiseResult = await openAIRequestImagemAnaliser(imageUri, a.action_start_prt)
                 
                 switch(analiseResult.status){
                     case 0:

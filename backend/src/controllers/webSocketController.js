@@ -40,9 +40,9 @@ import { licenseFileWithUsage,
     returnLicenseKey, 
     encryptLicenseFile
 } from './licenseController.js';
-import { restartService } from '../utils/serviceManager.js'
-import { getDetailsForActivity } from '../utils/actionsUtils.js'
-let license = { Users: 10 }; // Licença temporária
+import { restartService } from '../utils/serviceManager.js';
+import { getDetailsForActivity } from '../utils/actionsUtils.js';
+import { openAIRequestTestCredits } from '../utils/openAiUtils.js';
 
 export const handleConnection = async (conn, req) => {
     const today = getDateNow();
@@ -753,6 +753,8 @@ export const handleConnection = async (conn, req) => {
                                 },
                             });
                         conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSuccess", result: updateConfigResult }));
+                        const configResult = await db.config.findAll();
+                        conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: configResult }));
                     }
                     if (obj.mt == "AddConfig") {
                         const objToInsert = {
@@ -893,6 +895,15 @@ export const handleConnection = async (conn, req) => {
                             api: "admin",
                             mt: "DevCreateLicenseResult",
                             licenseHash: hash
+                        }));
+                    }
+                    if (obj.mt == "getOpenAiStatus") {
+                        const result = await openAIRequestTestCredits();
+
+                        conn.send(JSON.stringify({
+                            api: "admin",
+                            mt: "getOpenAiStatusResult",
+                            result: result
                         }));
                     }
                     //#endregion

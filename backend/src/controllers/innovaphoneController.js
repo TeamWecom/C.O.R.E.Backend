@@ -543,7 +543,11 @@ export const pbxApiPresenceSubscription = async () => {
                 entry: 'customHeaders'
             }
         });
-        log('innovaphoneController:pbxApiPresenceSubscription: config '+JSON.stringify(config))
+        if(!config){
+            log('innovaphoneController:pbxApiPresenceSubscription: URL not configured')
+            return;
+        }
+        log('innovaphoneController:pbxApiPresenceSubscription: requesting to the PBX')
         // Solicitação para obter dispositivos
         const pbxResponse = await sendHttpGetRequest(config.value+"/pbxApiPresences", customHeaders.value);
         if(pbxResponse.data && pbxResponse){
@@ -588,7 +592,7 @@ export const pbxTableUsers = async () => {
                 entry: 'urlPbxTableUsers'
             }
         });
-        log('innovaphoneController:pbxTableUsers: config '+JSON.stringify(config))
+        //log('innovaphoneController:pbxTableUsers: config '+JSON.stringify(config))
         // Solicitação para obter dispositivos
         if(config.value != ''){
             const pbxResponse = await sendHttpGetRequest(config.value+"/pbxTableUsers", '{}');
@@ -685,7 +689,7 @@ export const requestPresences = async (guid) => {
 }
 
 export const callEvents = async (obj) => {
-    log('innovaphoneController:callEvents: '+JSON.stringify(obj))
+    //log('innovaphoneController:callEvents: '+JSON.stringify(obj))
     try{
         if(obj.mode == 'CallRecordId'){
             const user = await db.user.findOne({
@@ -759,10 +763,7 @@ export const callEvents = async (obj) => {
                     const call = await db.call.findOne({
                         where: {
                           guid: user.guid,
-                          number: obj.num,
-                          call_innovaphone: obj.call,
-                          device: obj.device,
-                          status: 1
+                          call_innovaphone: obj.call
                         },
                         order: [
                           ['id', 'DESC']
@@ -776,19 +777,20 @@ export const callEvents = async (obj) => {
                              }, // Valores a serem atualizados
                             { where: { id: parseInt(call.id) } } // Condição para atualização
                         );
-                        log("innovaphoneController:callEvents:CallDisconnected:callToUpdateResult "+callToUpdateResult)
+                        log(`innovaphoneController:callEvents:CallDisconnected: updated ${callToUpdateResult} call with id ${call.id}`)
                         //intert into DB the event
                         var msg = { 
                             guid: user.guid, 
-                            from: obj.num, 
+                            from: call.direction == "out"? obj.guid : obj.num, 
                             name: "call", 
                             date: getDateNow(), 
-                            status: "stop", 
+                            status: call.call_connected == null ? "not_connected" : "connected", 
                             details: call.id, 
-                            prt: obj.num 
+                            prt: call.direction == "out" ? obj.num : obj.guid 
                         }
                         //log("innovaphoneController:callEvents:CallRinging will insert it on DB : " + JSON.stringify(msg));
                         let resultInsert = await db.activity.create(msg)
+                        log("innovaphoneController:callEvents:CallDisconnected inserted activity with id : " + resultInsert.id);
                         const detail = await db.call.findOne({where:{
                             id:parseInt(call.id)
                         }})
@@ -797,22 +799,23 @@ export const callEvents = async (obj) => {
                             .then(async(result) =>{
                                 finalCall = result[0]
                                 resultInsert.details = finalCall
+                                log(`innovaphoneController:callEvents:returnRecordLink: ${finalCall.record_link == ''? false : true}`)
                                 send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                             })
                             .catch(async(e)=>{
-                                log(`actionsUtils:returnRecordLink: error ${e}`)
+                                log(`innovaphoneController:callEvents:returnRecordLink: error ${e}`)
                                 send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                             })
+                        
+                    }else{
+                        log(`innovaphoneController:callEvents:CallDisconnected: call not found in DB ${JSON.stringify(call)} : for obj received ${JSON.stringify(obj)}`)
                         
                     }
                 }else{
                     const call = await db.call.findOne({
                         where: {
                           guid: user.guid,
-                          number: obj.num,
-                          call_innovaphone: obj.call,
-                          device: obj.device,
-                          status: 1,
+                          call_innovaphone: obj.call
                         },
                         order: [
                           ['id', 'DESC']
@@ -826,16 +829,16 @@ export const callEvents = async (obj) => {
                              }, // Valores a serem atualizados
                             { where: { id: parseInt(call.id) } } // Condição para atualização
                         );
-                        log("innovaphoneController:callEvents:IncomingCallDisconnected:callToUpdateResult "+callToUpdateResult)
+                        log(`innovaphoneController:callEvents:CallDisconnected: updated ${callToUpdateResult} call with id ${call.id}`)
                         //intert into DB the event
                         var msg = { 
                             guid: user.guid, 
-                            from: obj.num, 
+                            from: call.direction == "out" ? obj.guid : obj.num,  
                             name: "call", 
                             date: getDateNow(), 
-                            status: "stop", 
+                            status: call.call_connected == null ? "not_connected" : "connected", 
                             details: call.id, 
-                            prt: obj.num 
+                            prt: call.direction == "out" ? obj.num : obj.guid 
                         }
                         //log("innovaphoneController:callEvents:CallRinging will insert it on DB : " + JSON.stringify(msg));
                         let resultInsert = await db.activity.create(msg)
@@ -847,12 +850,15 @@ export const callEvents = async (obj) => {
                             .then(async(result) =>{
                                 finalCall = result[0]
                                 resultInsert.details = finalCall
+                                log(`innovaphoneController:callEvents:returnRecordLink: ${finalCall.record_link == ''? false : true}`)
                                 send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                             })
                             .catch(async(e)=>{
-                                log(`actionsUtils:returnRecordLink: error ${e}`)
+                                log(`innovaphoneController:callEvents:returnRecordLink: error ${e}`)
                                 send(user.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert] });
                             })
+                    }else{
+                        log(`innovaphoneController:callEvents:IncomingCallDisconnected: call not found in DB ${JSON.stringify(call)}`)                    
                     }
                     const usersInn = await pbxTableUsers()
                     const userInn = usersInn.filter(u => u.guid == obj.guid )[0]
@@ -860,6 +866,7 @@ export const callEvents = async (obj) => {
                     send(user.guid, {api: "user", mt: "IncomingCallDisconnected", device: obj.device, deviceText: device.text, num: obj.num, call: obj.call})
                     broadcast({ api: "user", mt: "NumberOnline", number: obj.num, note: "online", color: "online" })
                     broadcast({ api: "user", mt: "NumberOnline", number: userInn.e164, note: "online", color: "online" })
+                    return;
                 }
 
             } 
@@ -1214,6 +1221,10 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
 
             if(payload == 'opus'){
                 log(`innovaphoneController:convertRecordingPcapToWav: OPUS CODEC DETECTED`);
+
+                //atualizar o hotorico do usuário com o record_link
+                const call = await getCallByRecordId(filenameBase)
+
                 return await convertOpusPcapToOpus(pcapFilePath, outputDirectory, filenameBase)
             }
 
@@ -1246,7 +1257,7 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
                 // Converter o arquivo RAW para WAV usando os parâmetros corretos
                 const soxCommand = `sox ${soxParams} ${rawFilePath} ${wavFilePath}`;
 
-                exec(soxCommand, (err, stdout, stderr) => {
+                exec(soxCommand, async (err, stdout, stderr) => {
                     if (err) {
                         log(`innovaphoneController:convertRecordingPcapToWav: Error running sox: ${stderr}`);
                         return err;
@@ -1270,6 +1281,9 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
                             log(`innovaphoneController:convertRecordingPcapToWav: Deleted pcap file: ${pcapFilePath}`);
                         }
                     });
+
+                    //atualizar o hotorico do usuário com o record_link
+                    const call = await getCallByRecordId(filenameBase)
 
                     return wavFilePath;
                 });
@@ -1525,4 +1539,47 @@ function getActivityFromPresence(data) {
 
     // Retorna o primeiro valor de 'note' encontrado, ou 'Note não encontrado' caso não exista
     return activities.length > 0 ? activities[0] : '';
+}
+
+/**
+ * Realiza o split na string, obtém o índice 0 e consulta no model Call
+ * @param {string} inputString - A string a ser processada (ex: "12345-abc-def")
+ * @returns {Promise<Object|null>} - Objeto encontrado ou null se não houver correspondência
+ */
+async function getCallByRecordId(inputString) {
+    try {
+        // Realiza o split da string pelo '-'
+        const parts = inputString.split('-');
+        
+        // Obtém o valor do índice 0
+        const recordId = parts[0];
+
+        // Consulta no model Call onde record_id é igual ao valor do índice 0
+        const call = await db.call.findOne({
+            where: {
+                record_id: recordId, // Ajuste o campo conforme o modelo
+            },
+        });
+
+        // Retorna o objeto encontrado ou null se não houver correspondência
+
+        let activity = await db.activity.findOne({where:{
+            details: call.id
+        }})
+        activity =  activity.toJSON();
+        returnRecordLink([call])
+            .then(async(result) =>{
+                activity.details = result[0]
+                log(`innovaphoneController:getCallByRecordId:returnRecordLink: ${call.record_link == ''? false : true}`)
+                send(activity.guid, { api: "user", mt: "getHistoryResult", result: [activity] });
+            })
+            .catch(async(e)=>{
+                log(`innovaphoneController:getCallByRecordId:returnRecordLink: error ${e}`)
+                send(activity.guid, { api: "user", mt: "getHistoryResult", result: [activity] });
+            })
+        return callRecord;
+    } catch (error) {
+        console.error('innovaphoneController:getCallByRecordId: Erro ao buscar o registro:', error);
+        throw error; // Lança o erro para ser tratado pelo chamador
+    }
 }

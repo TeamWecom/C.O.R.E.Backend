@@ -27,20 +27,14 @@ export const getDetailsForActivity = async (activity) => {
                 id: parseInt(activity.details)
             }
         });
+        if(activityDetails){
+            log(`actionsUtils:getDetailsForActivity: detail id ${activityDetails.id} is a ${activity.name}`) 
+        }
         let detail =  activityDetails.toJSON();
         if(detail && activity.name == 'call'){
-            returnRecordLink([detail])
-            .then(async(result) =>{
-                try{
-                    detail = result[0]
-                }catch(e){
-                    log('actionsUtils:getDetailsForActivity:returnRecordLink: result error '+e)
-                }
-                
-            })
-            .catch(async(e)=>{
-                log(`actionsUtils:getDetailsForActivity:returnRecordLink: rejected error ${e}`)
-            })
+            const result = await returnRecordLink([detail])
+            detail = result[0];
+            log(`actionsUtils:getDetailsForActivity: detail id ${activityDetails.id} detail updated ${JSON.stringify(detail)}`) 
         }
         //log(`actionsUtils: detail ${JSON.stringify(detail)}`)
         // Substitui 'details' pelo objeto retornado, se encontrado

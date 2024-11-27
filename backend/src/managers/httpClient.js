@@ -12,22 +12,22 @@ const axiosInstance = axios.create({
 export const sendHttpGetRequest = async (endpoint, customHeaders) => {
     try {
         const response = await axiosInstance.get(endpoint, { headers: JSON.parse(customHeaders), timeout: 20000 });
-        log(`GET request to ${endpoint} successful:`);
+        log(`httpClient:sendHttpGetRequest: GET request to ${endpoint} result status:${response.status}`);
         return response;
     } catch (error) {
-        log(`Error sending GET request to ${endpoint}:${error.message}`);
+        log(`httpClient:sendHttpGetRequest: Error sending GET request to ${endpoint}:${JSON.stringify(error.message)}`);
         return error.response;
     }
 }
 
 export const sendHttpPostRequest = async (endpoint, data, customHeaders) => {
     try {
-        log(`POST request to ${endpoint} data:`, data);
+        log(`httpClient:sendHttpPostRequest: POST request to ${endpoint} data:`, data);
         const response = await axiosInstance.post(endpoint, data, { headers: JSON.parse(customHeaders), timeout: 20000});
-        log(`POST request to ${endpoint} successful:`);
+        log(`httpClient:sendHttpPostRequest: POST request to ${endpoint} result status:${response.status}`);
         return response;
     } catch (error) {
-        log(`Error sending POST request to ${endpoint}:`, error.message);
+        log(`httpClient:sendHttpPostRequest: Error sending POST request to ${endpoint}:`, error.message);
         return error.message;
     }
 }
@@ -35,19 +35,19 @@ export const sendHttpPostRequest = async (endpoint, data, customHeaders) => {
 export const sendHttpPutRequest = async (endpoint, data, customHeaders) =>{
     try {
         const response = await axios.put(endpoint, data, { headers: JSON.parse(customHeaders), timeout: 20000 });
-        log(`PUT request to ${endpoint} successful:`);
+        log(`httpClient:sendHttpPutRequest: PUT request to ${endpoint} result status:${response.status}`);
         return response;
     } catch (error) {
-        log(`Error sending PUT request to ${endpoint}:`, error.message);
+        log(`httpClient:sendHttpPutRequest: Error sending PUT request to ${endpoint}:`, error.message);
     }
 }
 
 export const sendHttpDeleteRequest = async (endpoint, customHeaders) =>{
     try {
         const response = await axios.delete(endpoint, { headers: JSON.parse(customHeaders), timeout: 20000 });
-        log(`DELETE request to ${endpoint} successful:`);
+        log(`httpClient:sendHttpDeleteRequest: DELETE request to ${endpoint} result status:${response.status}`);
         return response;
     } catch (error) {
-        log(`Error sending DELETE request to ${endpoint}:`, error.message);
+        log(`httpClient:sendHttpDeleteRequest: Error sending DELETE request to ${endpoint}:`, error.message);
     }
 }
