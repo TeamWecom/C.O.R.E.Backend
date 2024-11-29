@@ -7,12 +7,13 @@ const openaiParamters = [
     'openaiOrg',
     'openaiProj'
 ];
+import fs from "fs";
 
 /**
  * Função para Verificar no ChatGPT se a imagem está de acordo com as definições necessárias
  * @param {string} customPrompt - Seu prompt customizado
  * @param {string} image - A url da imagem 
- * @returns {Promise<object>}
+ * @returns {Promise<object>} - {status:2, msg: error}
  */
 export async function openAIRequestImagemAnaliser(customPrompt, image) {
     // Faz uma consulta ao banco de dados para pegar todas as entradas correspondentes
@@ -82,6 +83,10 @@ export async function openAIRequestImagemAnaliser(customPrompt, image) {
       return {status:2, msg: error}
     }
 }
+/**
+ * Função para Verificar no ChatGPT se os dados da API estão corretos 
+ * @returns {Promise<object>} - {status:"NOK", text: error}
+ */
 export async function openAIRequestTestCredits() {
     // Faz uma consulta ao banco de dados para pegar todas as entradas correspondentes
     const configs = await db.config.findAll({
@@ -119,9 +124,46 @@ export async function openAIRequestTestCredits() {
         
         const result = await response.choices[0].message.content;
         log('openAiUtils:openAIRequestTestCredits: Resultado da análise '+ result);
-        return {status:"OK"};
+        return {status:"OK", text: "OK"};
     } catch (error) {
       log('openAiUtils:openAIRequestTestCredits: Erro ' + error);
-      return {status:"NOK", msg: error}
+      return {status:"NOK", text: error}
     }
+}
+/**
+ * Função para transcrever audios no ChatGPT
+ * @param {string} audio - O path do audio
+ * @returns {Promise<object>} - {status:"NOK", text: error}
+ */
+export async function openAIRequestTranscription(audio) {
+  // Faz uma consulta ao banco de dados para pegar todas as entradas correspondentes
+  const configs = await db.config.findAll({
+      where: {
+      entry: openaiParamters
+      }
+  });
+  // Transforma o resultado em um objeto chave-valor
+  const openaiConfigObj = {};
+  configs.forEach(config => {
+  openaiConfigObj[config.entry] = config.value;
+  });
+  //log(`openAiUtils:openAIRequestTranscription: openaiConfigObj ${JSON.stringify(openaiConfigObj)}`)
+
+  const openai = new OpenAIApi({
+      apiKey: openaiConfigObj.openaiKey,
+      organization: openaiConfigObj.openaiOrg,
+      project: openaiConfigObj.openaiProj,
+  });
+
+  try {
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(audio),
+        model: "whisper-1",
+      });
+      log('openAiUtils:openAIRequestTranscription: Resultado da transcrição '+ JSON.stringify(transcription));
+      return {status:"OK", text: transcription.text};
+  } catch (error) {
+    log('openAiUtils:openAIRequestTranscription: Erro ' + error);
+    return {status:"NOK", text: error}
+  }
 }

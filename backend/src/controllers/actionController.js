@@ -1,14 +1,12 @@
 import { broadcast, send } from '../managers/webSocketManager.js';
 import { getDateNow } from '../utils/getDateNow.js';
 import {sendHttpPostRequest} from '../managers/httpClient.js';
-//const ConfigModel = require('../models/configModel')
 import db from '../managers/databaseSequelize.js';
 import { log } from '../utils/log.js';
 import { Op, where } from 'sequelize';
 import fs from 'fs';
 import path from 'path';
 import process from 'process';
-import configFile from '../config/config.js';
 import { config as dotenvConfig } from 'dotenv';
 dotenvConfig();
 
@@ -18,7 +16,7 @@ import { getDevices, TriggerCommand, findGatewayIdByDevEUI } from './milesightCo
 import {innovaphoneMakeCall} from './innovaphoneController.js'
 import { sendEmail } from '../managers/smtpManager.js'
 import {openAIRequestImagemAnaliser} from '../utils/openAiUtils.js';
-import OpenAIApi from 'openai';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -26,12 +24,13 @@ const __dirname = dirname(__filename);
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
 
-const openaiParamters = [
-    'openaiKey',
-    'openaiOrg',
-    'openaiProj'
-];
-
+/**
+ * Função para localizar Ações com base no tipo de Gatilho e Parâmetro de Gatilho
+ * @param {string} from - Origem da Ação
+ * @param {string} prt - Parâmetro de Gatilho da Ação
+ * @param {string} type - Tipo de Gatilho da Ação
+ * @returns {boolean} - Se alguma execução foi realizada
+ */
 export const triggerActionByStartType = async (from, prt, type) => {
     try {
         //Get Actions from DB
@@ -62,6 +61,11 @@ export const triggerActionByStartType = async (from, prt, type) => {
         return false;
     }
 }
+/**
+ * Função para localizar Ações com base no deveui do Sensor
+ * @param {Object} obj - Objeto recebido do Sensor
+ * @returns {boolean} - Se alguma execução foi realizada
+ */
 export const triggerActionBySensor = async (obj) => {
     try{
         const actionsBySensor = await db.action.findAll({
@@ -94,6 +98,11 @@ export const triggerActionBySensor = async (obj) => {
     }
     
 }
+/**
+ * Função para localizar Ações com base no MAC da Câmera
+ * @param {Object} obj - Objeto recebido da Câmera
+ * @returns {boolean} - Se alguma execução foi realizada
+ */
 export const triggerActionByImagem = async (obj) => {
     try {
         let result = false;
@@ -148,9 +157,12 @@ export const triggerActionByImagem = async (obj) => {
         return false;
     }
 }
-//
-// Função para salvar a imagem base64 em um arquivo
-//
+/**
+ * Função para salvar a imagem base64 em um arquivo
+ * @param {string} base64Image - Imagem em base64
+ * @param {string} fileName -Nome da imagem que será salva localmente
+ * @returns {string} - Retorna o caminho relativo
+ */
 function saveBase64Image(base64Image, fileName) {
     try{
         // Define o diretório onde os arquivos estáticos serão servidos
@@ -179,12 +191,14 @@ function saveBase64Image(base64Image, fileName) {
 
     }catch(e){
 
-        return
+        return 
     }
 }
-//
-// Função para excluir a imagem após análise
-//
+/**
+ * Função para excluir a imagem após análise
+ * @param {string} fileName - Nome da imagem que será salva localmente
+ * @returns {boolean}
+ */
 function deleteImage(fileName) {
     try {
         // Define o diretório onde os arquivos estão armazenados
@@ -205,9 +219,12 @@ function deleteImage(fileName) {
         return false;
     }
 }
-//
-// Função para tratar as ações com base no JSON recebido
-//
+/**
+ * Função para tratar as ações com base no JSON recebido
+ * @param {string} from - Nome da imagem que será salva localmente
+ * @param {Array} actions - Lista de ações
+ * @returns {boolean} - Se alguma execução foi realizada
+ */
 async function resolveAction(from, actions){
     try{
         actions.forEach(async function (ac) {
@@ -216,9 +233,10 @@ async function resolveAction(from, actions){
             switch (ac.action_exec_type) {
                 case "alarm":
                     notifyUsersAboutActionExecution(from, ac)
+                    actionAlert(from, ac);
                     break;
                 case "number":
-                    await makeCall(ac)
+                    await actionMakeCall(ac)
                     notifyUsersAboutActionExecution(from, ac)
                     break;
                 case "button":
@@ -272,9 +290,12 @@ async function resolveAction(from, actions){
     }
     
 }
-//
-// Função para verificar as ações com base no sensor recebido
-//
+/**
+ * Função para verificar as ações com base no sensor recebido
+ * @param {Object} data - Objeto recebido do Sensor
+ * @param {Array} actions - Lista de ações para o deveui do Sensor
+ * @returns {Array} - Ações aplicaveis
+ */
 function verificarAcoes(data, actions) {
     var acoes = [];
     //log("actionController:verificarAcoes:parameters data" + JSON.stringify(data))
@@ -301,10 +322,12 @@ function verificarAcoes(data, actions) {
     log("actionController:verificarAcoes:return "+ acoes.length +" actions!")
     return acoes;
 }
-//
-// Função para confecção da chamada a ser executada com base na ação executada
-//
-async function makeCall(action){
+/**
+ * Função para confecção da chamada a ser executada com base na ação executada
+ * @param {Object} action - Ação
+ * @returns {string} - Resultado
+ */
+async function actionMakeCall(action){
     try{
         let pbxType = await db.config.findOne({
             where:{
@@ -340,9 +363,12 @@ async function makeCall(action){
         return e
     }  
 }
-//
-// Função para envio de emails e notificações para os usuários quando uma ação é executada
-//
+/**
+ * Função para envio de emails e notificações para os usuários quando uma ação é executada
+ * @param {string} from - Nome de quem disparou a ação
+ * @param {Object} action - Ação
+ * @returns
+ */
 async function notifyUsersAboutActionExecution(from, action){
     try{
 
@@ -505,75 +531,62 @@ async function notifyUsersAboutActionExecution(from, action){
         log("actionController:notifyUsersAboutActionExecution: erro " + e);
     }
 }
-//
-// Função para Verificar no ChatGPT se a imagem está de acordo com as definições necessárias
-//
-async function imagemAnaliser(image, customPrompt) {
-    
-    // Faz uma consulta ao banco de dados para pegar todas as entradas correspondentes
-    const configs = await db.config.findAll({
-        where: {
-        entry: openaiParamters
+/**
+ * Função para enviar alerta de Ações para usuários conectados
+ * @param {string} from - Nome de quem disparou a ação
+ * @param {Object} action - Ação
+ * @returns
+ */
+async function actionAlert(from, action){
+    try{
+        if(action.action_exec_user != ''){
+            //intert into DB the event
+            var msg = { 
+                guid: action.action_exec_user, 
+                from: from, 
+                name: "alert", 
+                date: getDateNow(), 
+                status: "inc", 
+                details: action.id, 
+                prt: action.action_exec_prt, 
+                min_threshold: action.action_start_prt, 
+                max_threshold: action.action_start_prt, 
+            }
+            //log("buttonController:triggerAlarm: will insert it on DB : " + JSON.stringify(msg));
+            let resultInsert = await db.activity.create(msg)
+            resultInsert.details = action
+            send(action.action_exec_user, { api: "user", mt: "getHistoryResult", result: [resultInsert]});
+
+        }else{
+            const users = await db.user.findAll();
+            if(users.length > 0){
+                users.forEach(async u => {
+                    //intert into DB the event
+                    var msg = { 
+                        guid: u.guid, 
+                        from: from, 
+                        name: "alarm",
+                        date: getDateNow(), 
+                        status: "inc", 
+                        details: action.id, 
+                        prt: action.action_exec_prt, 
+                        min_threshold: action.action_start_prt, 
+                        max_threshold: action.action_start_prt, 
+                    }
+                    //log("buttonController:triggerAlarm: will insert it on DB : " + JSON.stringify(msg));
+                    let resultInsert = await db.activity.create(msg)
+                    resultInsert.details = action
+                    send(u.guid, { api: "user", mt: "getHistoryResult", result: [resultInsert]});
+
+
+                })
+            }
         }
-    });
-    // Transforma o resultado em um objeto chave-valor
-    const openaiConfigObj = {};
-    configs.forEach(config => {
-    openaiConfigObj[config.entry] = config.value;
-    });
-    log(`actionController:openaiConfigObj ${JSON.stringify(openaiConfigObj)}`)
-
-    const openai = new OpenAIApi({
-        apiKey: openaiConfigObj.openaiKey,
-        organization: openaiConfigObj.openaiOrg,
-        project: openaiConfigObj.openaiProj,
-    });
-
-    let systemPrompt;
-    if(customPrompt){
-        systemPrompt = `Você é um engenheiro de segurança do trabalho e deve analisar as imagens de trabalhadores em seu dia a dia de trabalho, retornando como resposta:
-        0 = Com EPIs adequados, 1 = sem EPI adequado ou 2 = não identificado.
-        
-        Pergunta: "${customPrompt}"
-    
-        As respostas devem ser exclusivamente:
-        {"status":0, "msg": "ok"}, {"status":1, "msg": "<motivo da reprovação>"} ou {"status":2, "msg": "<motivo da incerteza>"}.
-      `;
-
-    }else{
-        systemPrompt = `Você é um engenheiro de segurança do trabalho e deve analisar as imagens de trabalhadores em seu dia a dia de trabalho, retornando como resposta:
-        0 = Com EPIs adequados, 1 = sem EPI adequado ou 2 = não identificado.
-        
-        Pergunta: "O funcionário da empresa que está desempanhando o trabalho está usando os EPIs básicos para a execução daquela atividade em questão?"
-    
-        As respostas devem ser exclusivamente:
-        {"status":0, "msg": "ok"}, {"status":1, "msg": <motivo da reprovação>} ou {"status":2, "msg": <motivo da incerteza>}.
-      `;
+        return
+    }catch(e){
+        log("actionController:actionAlert: erro " + e);
+        return
     }
-    try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: systemPrompt },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      "url": image,
-                    },
-                  },
-                ],
-              },
-            ],
-          });
-        
-        const result = await response.choices[0].message.content;
-        log('actionController:imagemAnaliser: Resultado da análise:'+ result);
-        return JSON.parse(result);
-    } catch (error) {
-      log('actionController:imagemAnaliser: Erro na análise da imagem:' + error);
-      return {status:2, msg: error}
-    }
+    
+
 }

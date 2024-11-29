@@ -10,14 +10,14 @@ module.exports = {
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      entry : Sequelize.STRING,
-    value : Sequelize.TEXT,
-    createdAt: Sequelize.DATE,
-    updatedAt: Sequelize.DATE
+      entry: Sequelize.STRING,
+      value: Sequelize.TEXT,
+      createdAt: Sequelize.DATE,
+      updatedAt: Sequelize.DATE
     });
 
-    // Inserir os dados na tabela 'configs'
-    await queryInterface.bulkInsert('configs', [
+    // Verificar e inserir dados na tabela 'configs' se ainda não existirem
+    const records = [
       { id: 1, entry: 'urlalarmserver', value: '' },
       { id: 2, entry: 'urlEnable', value: 'false' },
       { id: 3, entry: 'urlalarmserver', value: '' },
@@ -48,7 +48,18 @@ module.exports = {
       { id: 28, entry: 'openaiOrg', value: '' },
       { id: 29, entry: 'openaiProj', value: '' },
       { id: 30, entry: 'flicSecretApi', value: '' }
-    ], {});
+    ];
+
+    for (const record of records) {
+      await queryInterface.sequelize.query(
+        `
+        INSERT INTO configs (id, entry, value, createdAt, updatedAt)
+        VALUES (:id, :entry, :value, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+        `,
+        { replacements: record }
+      );
+    }
   },
 
   down: async (queryInterface, Sequelize) => {

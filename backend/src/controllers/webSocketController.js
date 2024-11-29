@@ -34,7 +34,7 @@ import { send,
 } from '../managers/webSocketManager.js';
 import { generateGUID } from '../utils/generateGuid.js';
 import {sendHttpPostRequest, sendHttpGetRequest} from '../managers/httpClient.js';
-import {pbxStatus, pbxTableUsers, requestPresences, returnRecordLink} from '../controllers/innovaphoneController.js'
+import {pbxStatus, pbxTableUsers, requestPresences, returnRecordFileByRecordId, returnRecordLink} from '../controllers/innovaphoneController.js'
 import { licenseFileWithUsage, 
     returnLicenseFile, 
     returnLicenseKey, 
@@ -42,7 +42,7 @@ import { licenseFileWithUsage,
 } from './licenseController.js';
 import { restartService } from '../utils/serviceManager.js';
 import { getDetailsForActivity } from '../utils/actionsUtils.js';
-import { openAIRequestTestCredits } from '../utils/openAiUtils.js';
+import { openAIRequestTestCredits, openAIRequestTranscription } from '../utils/openAiUtils.js';
 
 export const handleConnection = async (conn, req) => {
     const today = getDateNow();
@@ -1463,6 +1463,46 @@ export const handleConnection = async (conn, req) => {
                                 conn.send(JSON.stringify({ api: "admin", mt: "DeleteFromReportsSuccess", src: obj.src }));
                                 
                             break;
+                        }
+                    }
+                    if(obj.mt == "GetTranscription") {
+                        try{
+                            const call_transcription = await db.callTranscription.findOne({where: {
+                                call_id: obj.call
+                            }})
+
+                            if(!call_transcription){
+                                //transcrever
+                                const call = await db.call.findOne({where: {
+                                    id: parseInt(obj.call)
+                                }})
+                                const audio = await returnRecordFileByRecordId(call.record_id)
+                                if(audio){
+                                    var result = await openAIRequestTranscription(audio);
+                                    conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: result }))    
+                                    if(result.status == "OK"){
+                                        let objToInsert = {
+                                            call_id: obj.call,
+                                            text: result.text,
+                                            create_user: conn.guid,
+                                            createdAt: getDateNow()
+                
+                                        }
+                                        await db.callTranscription.create(objToInsert)
+                                    }
+                                    return
+                                }else{
+                                    conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {status: "NOK", text: "File not found"} }))    
+                                    return
+                                }
+                            }else{
+                                //já transcrevido
+                                conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {status: "OK", text: call_transcription.text} }))    
+                                return
+                            }
+                        }catch(e){
+                            conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {status: "NOK", text: e} }))
+                            return
                         }
                     }
                     //#endregion

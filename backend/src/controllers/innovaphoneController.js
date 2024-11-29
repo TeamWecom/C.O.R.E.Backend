@@ -1484,6 +1484,33 @@ export async function returnRecordLink(recordList) {
         });
     });
 }
+/**
+ * Retorna o arquivo de audio para um record_id
+ * @param {string} record_id - Id da gravação 
+ * @returns {Promise<string|null>} Nome do arquivo ou null 
+ */
+export async function returnRecordFileByRecordId(record_id) {
+    return new Promise((resolve, reject) => {
+        const outputDirectory = path.join(__dirname, '../httpfiles/recordings');
+        // Ler todos os arquivos do diretório de saída
+        fs.readdir(outputDirectory, (err, files) => {
+            if (err) {
+                return resolve(null);
+            }
+
+            // Verificar se algum arquivo corresponde ao record_id
+            const matchingFile = files.find(file => file.includes(record_id));
+                
+            // Se encontrar uma correspondência, atribuir o nome do arquivo ao record_id
+            if (matchingFile) {
+                return resolve('./httpfiles/recordings/'+matchingFile);
+            }
+            return resolve(null);
+        });
+    });
+
+    
+}
 
 function updateOrAddPresence(obj) {
     const index = presences.findIndex(presence => presence.src === obj.src);

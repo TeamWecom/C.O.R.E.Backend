@@ -428,7 +428,7 @@ export const resetPassword = async (req, res) => {
         //crypto.createHash('sha256').update(newPassword).digest('hex');
         await db.user.update({ password: hashedPassword }, { where: { guid: userGuid } });
 
-        res.status(200).json({ message: 'Password reset successfully' });
+        res.status(200).json({ result: 'Password reset successfully' });
     } catch (error) {
         log('Error resetting password:'+ error);
         res.status(500).json({ error: 'Internal server error' });
