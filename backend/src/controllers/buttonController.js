@@ -976,7 +976,7 @@ export const selectButtons = async (guid) => {
 }
 export const getActiveAlarmHistory = async (guid) => {
     let activeAlarms = await db.activeAlarms.findAll();
-    log("alarmController::getActiveAlarmHistory result activeAlarms= " + JSON.stringify(activeAlarms, null, 4));
+    log("alarmController::getActiveAlarmHistory result activeAlarms= " + activeAlarms.length+ " for user guid "+guid);
     let query = `
         SELECT 
           list_buttons.*, 

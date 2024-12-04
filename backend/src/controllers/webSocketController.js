@@ -108,7 +108,7 @@ export const handleConnection = async (conn, req) => {
 
                         
                         const resultInsertMessage = await db.message.create({
-                            chat_id: 'emergencys',
+                            chat_id: 'core',
                             from_guid: conn.guid,
                             to_guid: obj.to,
                             date: String(getDateNow()),
@@ -505,12 +505,12 @@ export const handleConnection = async (conn, req) => {
                             name: "opt", 
                             date: getDateNow(), 
                             status: "open", 
-                            prt: obj.prt, 
+                            prt: btn.button_prt, 
                             details: btn.id
                         }
                         log("webSocketController:TriggerStartOpt: will insert it on DB : " + JSON.stringify(msg));
                         var result = await db.activity.create(msg)
-                        conn.send(JSON.stringify({ api: "user", mt: "TriggerStartOptResult", src: result }));
+                        conn.send(JSON.stringify({ api: "user", mt: "getHistoryResult", result: [result] }));
                     }
                     if (obj.mt == "TriggerCombo") {
                         //trigger the combo function
@@ -526,7 +526,7 @@ export const handleConnection = async (conn, req) => {
                             name: "combo", 
                             date: today, 
                             status: "start", 
-                            prt: obj.prt, 
+                            prt: btn.button_prt, 
                             details: btn.id 
                         }
                         var resultInsert = await db.activity.create(msg)
@@ -897,12 +897,12 @@ export const handleConnection = async (conn, req) => {
                             licenseHash: hash
                         }));
                     }
-                    if (obj.mt == "getOpenAiStatus") {
+                    if (obj.mt == "GetOpenAiStatus") {
                         const result = await openAIRequestTestCredits();
 
                         conn.send(JSON.stringify({
                             api: "admin",
-                            mt: "getOpenAiStatusResult",
+                            mt: "GetOpenAiStatusResult",
                             result: result
                         }));
                     }
@@ -1156,20 +1156,49 @@ export const handleConnection = async (conn, req) => {
                     if (obj.mt == "SelectFromReports") {
                         switch (obj.src) {
                             case "RptCalls":
-                                var query = "SELECT * FROM tbl_calls";
+                                var query = `
+                                    SELECT 
+                                        c.*, 
+                                        t.text 
+                                    FROM 
+                                        tbl_calls c
+                                    LEFT JOIN 
+                                        tbl_calls_transcription t 
+                                    ON 
+                                        c.id = t.call_id
+                                `;
+
                                 var conditions = [];
-                                if (obj.guid) conditions.push("guid ='" + obj.guid + "'");
-                                if (obj.number) conditions.push("number ='" + obj.number + "'");
-                                if (obj.from) conditions.push("call_started >'" + obj.from + "'");
-                                if (obj.to) conditions.push("call_started <'" + obj.to + "'");
+                                var replacements = {};
+
+                                if (obj.guid) {
+                                    conditions.push("c.guid = :guid");
+                                    replacements.guid = obj.guid;
+                                }
+                                if (obj.number) {
+                                    conditions.push("c.number = :number");
+                                    replacements.number = obj.number;
+                                }
+                                if (obj.from) {
+                                    conditions.push("c.call_started > :from");
+                                    replacements.from = obj.from;
+                                }
+                                if (obj.to) {
+                                    conditions.push("c.call_started < :to");
+                                    replacements.to = obj.to;
+                                }
+
                                 if (conditions.length > 0) {
                                     query += " WHERE " + conditions.join(" AND ");
                                 }
-                                query += " ORDER BY id"
-                                // Execute a consulta usando sequelize.query()
+
+                                query += " ORDER BY c.id";
+
                                 var data = await db.sequelize.query(query, {
-                                    type: QueryTypes.SELECT
+                                    type: QueryTypes.SELECT,
+                                    replacements
                                 });
+
                                 var jsonData = JSON.stringify(data, null, 4);
                                 let jsonDataWithLinks = [];
                                 returnRecordLink(data).then(result => {

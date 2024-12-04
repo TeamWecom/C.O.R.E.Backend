@@ -1223,7 +1223,7 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
                 log(`innovaphoneController:convertRecordingPcapToWav: OPUS CODEC DETECTED`);
 
                 //atualizar o hotorico do usuário com o record_link
-                const call = await getCallByRecordId(filenameBase)
+                const call = await updateUserHistoryByRecordFilename(filenameBase)
 
                 return await convertOpusPcapToOpus(pcapFilePath, outputDirectory, filenameBase)
             }
@@ -1283,7 +1283,7 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
                     });
 
                     //atualizar o hotorico do usuário com o record_link
-                    const call = await getCallByRecordId(filenameBase)
+                    const call = await updateUserHistoryByRecordFilename(filenameBase)
 
                     return wavFilePath;
                 });
@@ -1466,18 +1466,18 @@ export async function returnRecordLink(recordList) {
                 return resolve(recordList);
             }
 
-            // Percorrer a lista de objetos
-            recordList.forEach(record => {
+            // Percorrer a lista de objetos de forma assíncrona
+            for (const record of recordList) {
                 // Verificar se algum arquivo corresponde ao record_id
                 const matchingFile = files.find(file => file.includes(record.record_id));
                 
                 // Se encontrar uma correspondência, atribuir o nome do arquivo ao record_id
                 if (matchingFile) {
-                    record.record_link = '/api/innovaphone/recordings/'+matchingFile;
-                }else{
+                    record.record_link = '/api/innovaphone/recordings/' + matchingFile;
+                } else {
                     record.record_link = '';
                 }
-            });
+            }
 
             // Retornar a lista editada
             return resolve(recordList);
@@ -1573,11 +1573,12 @@ function getActivityFromPresence(data) {
  * @param {string} inputString - A string a ser processada (ex: "12345-abc-def")
  * @returns {Promise<Object|null>} - Objeto encontrado ou null se não houver correspondência
  */
-async function getCallByRecordId(inputString) {
+async function updateUserHistoryByRecordFilename(inputString) {
     try {
+        log(`innovaphoneController:updateUserHistoryByRecordFilename: filename ${inputString}`)
         // Realiza o split da string pelo '-'
         const parts = inputString.split('-');
-        
+        log(`innovaphoneController:updateUserHistoryByRecordFilename: record_id ${parts[0]}`)
         // Obtém o valor do índice 0
         const recordId = parts[0];
 
@@ -1587,26 +1588,28 @@ async function getCallByRecordId(inputString) {
                 record_id: recordId, // Ajuste o campo conforme o modelo
             },
         });
-
+        log(`innovaphoneController:updateUserHistoryByRecordFilename: call ID ${call.id}`)
         // Retorna o objeto encontrado ou null se não houver correspondência
 
         let activity = await db.activity.findOne({where:{
             details: call.id
         }})
-        activity =  activity.toJSON();
-        returnRecordLink([call])
+        let activityJSON =  activity.toJSON();
+        let callJSON =  call.toJSON();
+        log(`innovaphoneController:updateUserHistoryByRecordFilename: activity ID ${activity.id}`)
+        await returnRecordLink([callJSON])
             .then(async(result) =>{
-                activity.details = result[0]
-                log(`innovaphoneController:getCallByRecordId:returnRecordLink: ${call.record_link == ''? false : true}`)
-                send(activity.guid, { api: "user", mt: "getHistoryResult", result: [activity] });
+                log(`innovaphoneController:updateUserHistoryByRecordFilename:returnRecordLink: record_link ${result[0].record_link}`)
+                activityJSON.details = result[0];
+                send(activity.guid, { api: "user", mt: "getHistoryResult", result: [activityJSON] });
             })
             .catch(async(e)=>{
-                log(`innovaphoneController:getCallByRecordId:returnRecordLink: error ${e}`)
-                send(activity.guid, { api: "user", mt: "getHistoryResult", result: [activity] });
+                log(`innovaphoneController:updateUserHistoryByRecordFilename:returnRecordLink: error ${e}`)
+                send(activity.guid, { api: "user", mt: "getHistoryResult", result: [activityJSON] });
             })
-        return callRecord;
+        return call;
     } catch (error) {
-        console.error('innovaphoneController:getCallByRecordId: Erro ao buscar o registro:', error);
+        console.error('innovaphoneController:updateUserHistoryByRecordFilename: Erro ao buscar o registro:', error);
         throw error; // Lança o erro para ser tratado pelo chamador
     }
 }

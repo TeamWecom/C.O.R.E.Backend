@@ -28,13 +28,13 @@ export const getDetailsForActivity = async (activity) => {
             }
         });
         if(activityDetails){
-            log(`actionsUtils:getDetailsForActivity: detail id ${activityDetails.id} is a ${activity.name}`) 
+            log(`actionsUtils:getDetailsForActivity: activity id ${activity.id} is a ${activity.name} ID ${activity.detail}`) 
         }
         let detail =  activityDetails.toJSON();
         if(detail && activity.name == 'call'){
             const result = await returnRecordLink([detail])
             detail = result[0];
-            log(`actionsUtils:getDetailsForActivity: detail id ${activityDetails.id} detail updated ${JSON.stringify(detail)}`) 
+            log(`actionsUtils:getDetailsForActivity: activity id ${activity.id}, call detail updated with redord_link}`) 
         }
         //log(`actionsUtils: detail ${JSON.stringify(detail)}`)
         // Substitui 'details' pelo objeto retornado, se encontrado
