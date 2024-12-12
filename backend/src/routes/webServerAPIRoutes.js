@@ -20,6 +20,8 @@ import { backupDatabase, compressAndDownloadFiles } from '../utils/dbMaintenance
 import {convertVideo, convertTsToMp4} from '../utils/videoConverter.js';
 import process from 'process';
 import { getSystemPreferences } from '../utils/serviceManager.js'
+import { getTokens, loadGoogleTokens } from '../managers/googleCalendarManager.js';
+import { broadcast } from '../managers/webSocketManager.js';
 const env = process.env.NODE_ENV || 'development';
 
 const router = express.Router();
@@ -381,4 +383,103 @@ router.get('/systemPreferences', async (req, res) => {
 });
 
 //#endregion
+
+// Rota para confirmar Google OAuth
+router.get('/google-oauth-callback', async (req, res) => {
+    try {
+        const code = req.query.code; // Obtém o valor de 'code' da URL
+        if (!code) {
+            return res.status(400).send('Código de autorização não encontrado.');
+        }
+        await getTokens(code)
+        const status = await loadGoogleTokens()
+        broadcast({ api: "admin", mt: "RequestGoogleOAuthStatusResult", result: status })
+        res.status(200).send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google OAuth - CORE</title>
+      <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f4;
+                margin: 0;
+                padding: 0;
+                color: white;
+            }
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: hsl(222.2, 84%, 4.9%);
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                color: white;
+            }
+            .header {
+                background-color: hsl(222.2, 84%, 4.9%);
+                padding: 20px;
+                border-radius: 8px 8px 0 0;
+                text-align: center;
+                color: white;
+            }
+            .header h1 {
+                margin: 0;
+                font-size: 24px;
+                color: white;
+            }
+            .content {
+                padding: 20px;
+                text-align: center;
+                color: white;
+            }
+            .content p {
+                font-size: 16px;
+                line-height: 1.5;
+                margin-bottom: 20px;
+            }
+            .button {
+                background-color: #2594d4;
+                color: white;
+                padding: 15px 20px;
+                text-decoration: none;
+                border-radius: 5px;
+                font-size: 16px;
+            }
+            .button:hover {
+                background-color: #2594d4e6;
+            }
+            .footer {
+                text-align: center;
+                font-size: 12px;
+                color: #888;
+                margin-top: 20px;
+                padding: 10px 0;
+            }
+            .link{
+                text-decoration: none;
+                color: white
+            }
+        </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header" >
+            <img src="">
+            <h1>Google OAuth</h1>
+        </div>
+        <div class="content">
+            <p>Você pode fechar essa página!</p>
+        </div>
+        <div class="footer">
+            <p>Av Carlos Gomes, 466 -CJ 401, Porto Alegre - RS</p>
+        </div>
+    </div>
+</body>
+        </html>`);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 export default router;

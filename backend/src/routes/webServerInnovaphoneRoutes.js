@@ -106,7 +106,7 @@ router.put('/recording/:filename', (req, res) => {
 });
 // Tratamento da requisição PROPFIND Innovaphone Recording URL
 router.propfind('/recording/', (req, res) => {
-    console.log('webServerInnovaphoneRoutes: /innovaphone/recording/: Received PROPFIND request to start a new record stream');
+    log('webServerInnovaphoneRoutes: /innovaphone/recording/: Received PROPFIND request to start a new record stream');
 
     const responseXml = propfind();
 

@@ -29,6 +29,7 @@ Button.init({
       page : DataTypes.STRING,
       position_x : DataTypes.STRING,
       position_y : DataTypes.STRING,
+      calendar_id : DataTypes.STRING,
       img : DataTypes.STRING,
       muted: DataTypes.BOOLEAN,
       createdAt : DataTypes.DATE,

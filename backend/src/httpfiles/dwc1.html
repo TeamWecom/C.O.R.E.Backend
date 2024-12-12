@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ligar para o Danilo</title>
+    <style>
+        /* Estilo do botão */
+        #start-call-btn {
+            width: 200px;
+            height: 80px;
+            background-color: #404140; /* Verde escuro */
+            color: #ffffff; /* Texto branco */
+            font-family: Arial, sans-serif; /* Fonte limpa */
+            font-size: 18px; /* Tamanho do texto */
+            font-weight: bold; /* Texto em negrito */
+            text-align: center; /* Centralizar texto */
+            border: 2px solid #000000; /* Borda preta */
+            border-radius: 5px; /* Borda arredondada */
+            cursor: pointer; /* Cursor de botão */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Ícone do telefone e nome */
+        #start-call-btn .top-section {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0 10px;
+            align-items: center;
+        }
+
+        #start-call-btn .top-section span {
+            font-size: 16px; /* Nome menor */
+            display: flex;
+            align-items: center;
+        }
+
+        #start-call-btn .top-section .number {
+            font-size: 24px; /* Número maior */
+            font-weight: bold;
+        }
+
+        /* Indicador de status */
+        #start-call-btn .status {
+            background-color: #00a000; /* Verde claro */
+            color: #ffffff;
+            font-size: 16px;
+            padding: 5px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Estilo do ícone */
+        #start-call-btn .icon {
+            margin-right: 8px;
+        }
+
+        /* Efeito hover */
+        #start-call-btn:hover {
+            background-color: #006600; /* Verde mais escuro */
+        }
+    </style>
+</head>
+<body>
+    <div id="cardset-container" style="display: none !important;"></div>
+
+    <!-- Scripts fornecidos -->
+    <script src="widget-ui.js" type="text/javascript" charset="UTF-8"></script>
+    <script src="https://apps.wecom.com.br/wecom.com.br/contact-widgets/innovaphone-widget.js" type="text/javascript" charset="UTF-8"></script>
+    <script>
+        try {
+            innovaphone.widgets.loadWidget(
+                "wss://apps.wecom.com.br/wecom.com.br/contact-widgets/service",
+                "e66f224b41614573baf2ee8b7b04bf24"
+            );
+        } catch (error) {
+            console.error("Erro ao carregar o widget:", error);
+        }
+    </script>
+
+    <!-- Botão para iniciar a chamada -->
+    <button id="start-call-btn">
+        <div class="top-section">
+            <span><span class="icon">📞</span>Ligar para o Danilo</span>
+            <span class="number">5024</span>
+        </div>
+        <div class="status">Disponível</div>
+    </button>
+    <!-- Script para chamar a função startCall -->
+    <script>
+        // Função para inicializar a chamada
+        let inCall = false;
+        document.getElementById("start-call-btn").addEventListener("click", function (ev) {
+            try {
+                if(!inCall){
+                    // Verifica se a função startCall está disponível
+                    if (typeof innovaphone.widgets.makeCall === "function") {
+                        innovaphone.widgets.makeCall("o pika"); // Chama a função com o evento do botão
+                        console.log("Chamada iniciada com sucesso.");
+                        inCall = true;
+                        //document.getElementById("start-call-btn").innerText = "Desligar"
+                    } else {
+                        console.error("A função startCall não está disponível.");
+                    }
+                }else{
+                    // Verifica se a função startCall está disponível
+                    if (typeof innovaphone.widgets.widget.clearCall === "function") {
+                        innovaphone.widgets.widget.clearCall()
+                        console.log("Chamada encerrada com sucesso.");
+                        inCall = false;
+                        //document.getElementById("start-call-btn").innerText = "Ligar para o Danilo"
+                    } else {
+                        console.error("A função startCall não está disponível.");
+                    }
+
+                }
+            } catch (error) {
+                console.error("Erro ao iniciar a chamada:", error);
+            }
+        });
+    </script>
+</body>
+</html>

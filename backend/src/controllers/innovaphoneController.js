@@ -83,6 +83,14 @@ export const innovaphonePassiveRCCMonitorEnd = async (user) => {
         return e;
     }
 }
+/**
+ * 
+ * @param {object} btn - Objeto que possui as definições de device e número de destino
+ * @param {object} user - Objeto do usuário que está solicitando a chamada
+ * @param {string} device - Device Id utilizado caso não seja fornecido um Objeto BTN
+ * @param {string} num - Número de destino utilizado caso não seja fornecido um Objeto BTN
+ * @returns 
+ */
 export const innovaphoneMakeCall = async (btn, user, device, num) => {
     try {
         let urlPbxTableUsers = await db.config.findOne({
@@ -98,11 +106,14 @@ export const innovaphoneMakeCall = async (btn, user, device, num) => {
         log('innovaphoneController:innovaphoneMakeCall: urlPbxTableUsers '+JSON.stringify(urlPbxTableUsers.value))
         let objCall;
         if(btn){
-            if(btn.button_type == 'user'){
-                const usersInn = await pbxTableUsers()
-                const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
-                btn.button_prt = userInn.e164
-            }
+            // if(btn.button_type == 'user'){
+            //     const usersInn = await pbxTableUsers()
+            //     const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+            //     btn.button_prt = userInn.e164
+            // }
+            // if(btn.button_type == 'google_calendar'){
+            //     btn.button_prt = num;
+            // }
             objCall = { 
                 num: btn.button_prt, 
                 mode: 'MakeCall', 
@@ -117,8 +128,7 @@ export const innovaphoneMakeCall = async (btn, user, device, num) => {
                 num: num, 
                 mode: 'MakeCall', 
                 guid: user.sip, 
-                device: device,
-                btn_id: ''
+                device: device
             }
 
         }
@@ -706,35 +716,53 @@ export const callEvents = async (obj) => {
                         }
                     })
                     if(btn){
-                        obj.num = btn.button_prt;
+                        //obj.num = btn.button_prt;
+                        
                     }
-                }
-                
-
-                const call = await db.call.findOne({
-                    where: {
-                      guid: user.guid,
-                      device: obj.device,
-                      number: obj.num,
-                      status: 1
-                    },
-                    order: [
-                      ['id', 'DESC']
-                    ]
-                  });
-                  
-                if(call){
-                    const callToUpdateResult = await db.call.update(
-                        { record_id: obj.record_id,
-                            call_innovaphone: obj.call,
-                            status: 1
-                         }, // Valores a serem atualizados
-                        { where: { id: parseInt(call.id) } } // Condição para atualização
-                    );
-                    log("innovaphoneController:callEvents:CallRecordId:callToUpdateResult "+callToUpdateResult)
-                    if(obj.btn_id && obj.btn_id !=""){
-                        send(user.guid, {api: "user", mt: "CallConnecting", call: obj.call, btn_id: obj.btn_id, device: obj.device, num: obj.num})
-                    }else{
+                    const call = await db.call.findOne({
+                        where: {
+                          guid: user.guid,
+                          device: obj.device,
+                          btn_id: obj.btn_id,
+                          status: 1
+                        },
+                        order: [
+                          ['id', 'DESC']
+                        ]
+                    });
+                    if(call){
+                        const callToUpdateResult = await db.call.update(
+                            { record_id: obj.record_id,
+                                call_innovaphone: obj.call,
+                                status: 1
+                                }, // Valores a serem atualizados
+                            { where: { id: parseInt(call.id) } } // Condição para atualização
+                        );
+                        log("innovaphoneController:callEvents:CallRecordId:callToUpdateResult "+callToUpdateResult)
+                        send(user.guid, {api: "user", mt: "CallConnecting", call: obj.call, btn_id: obj.btn_id, device: obj.device, num: btn.button_prt})
+                    }
+                }else{
+                    const call = await db.call.findOne({
+                        where: {
+                          guid: user.guid,
+                          device: obj.device,
+                          number: obj.num,
+                          status: 1
+                        },
+                        order: [
+                          ['id', 'DESC']
+                        ]
+                      });
+                      
+                    if(call){
+                        const callToUpdateResult = await db.call.update(
+                            { record_id: obj.record_id,
+                                call_innovaphone: obj.call,
+                                status: 1
+                             }, // Valores a serem atualizados
+                            { where: { id: parseInt(call.id) } } // Condição para atualização
+                        );
+                        log("innovaphoneController:callEvents:CallRecordId:callToUpdateResult "+callToUpdateResult)
                         send(user.guid, {api: "user", mt: "CallConnecting", call: obj.call, device: obj.device, num: obj.num})
                     }
                 }
@@ -886,9 +914,9 @@ export const callEvents = async (obj) => {
                     })
                     if(btn){
                         //
-                        send(user.guid, {api: "user", mt: "CallRinging", call: obj.call, btn_id: btn.id, device: obj.device, num: obj.num})
+                        send(user.guid, {api: "user", mt: "CallRinging", call: obj.call, btn_id: btn.id, device: obj.device, num: btn.button_prt})
                         broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "ringing", color: "ringing" })
-                        obj.num = btn.button_prt;
+                        //obj.num = btn.button_prt;
                     }
                 }else{
                     send(user.guid, {api: "user", mt: "CallRinging", call: obj.call, device: obj.device, num: obj.num})
@@ -897,7 +925,7 @@ export const callEvents = async (obj) => {
                 const call = await db.call.findOne({
                     where: {
                       guid: user.guid,
-                      number: obj.num,
+                      call_innovaphone: obj.call,
                       device: obj.device,
                       status: 1
                     },
@@ -909,7 +937,6 @@ export const callEvents = async (obj) => {
                 if(call){
                     const callToUpdateResult = await db.call.update(
                         { call_ringing: getDateNow(),
-                            call_innovaphone: obj.call,
                             status: 1
                          }, // Valores a serem atualizados
                         { where: { id: parseInt(call.id) } } // Condição para atualização
@@ -981,9 +1008,9 @@ export const callEvents = async (obj) => {
                     })
                     if(btn){
                         //
-                        send(user.guid, {api: "user", mt: "CallConnected", call: obj.call, btn_id: btn.id, device: obj.device, num: obj.num})
+                        send(user.guid, {api: "user", mt: "CallConnected", call: obj.call, btn_id: btn.id, device: obj.device, num: btn.button_prt})
                         broadcast({ api: "user", mt: "NumberBusy", number: obj.num, note: "busy", color: "busy" })
-                        obj.num = btn.button_prt;
+                        //obj.num = btn.button_prt;
                     }
                 }else{
                     send(user.guid, {api: "user", mt: "CallConnected", call: obj.call, device: obj.device, num: obj.num})
@@ -1028,7 +1055,6 @@ export const callEvents = async (obj) => {
                 const call = await db.call.findOne({
                     where: {
                       guid: user.guid,
-                      number: obj.num,
                       call_innovaphone: obj.call,
                       status: 1,
                       direction: 'inc'
@@ -1609,7 +1635,7 @@ async function updateUserHistoryByRecordFilename(inputString) {
             })
         return call;
     } catch (error) {
-        console.error('innovaphoneController:updateUserHistoryByRecordFilename: Erro ao buscar o registro:', error);
+        log('innovaphoneController:updateUserHistoryByRecordFilename: Erro ao buscar o registro:'+ error);
         throw error; // Lança o erro para ser tratado pelo chamador
     }
 }

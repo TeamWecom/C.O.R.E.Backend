@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            text-align: center;
+            margin: 20px;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        /* Container do teclado */
+        .dialer-container {
+            max-width: 500px;
+            display: flex;
+            background: #fff;
+            border: 2px solid #000;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            flex-direction: column;
+            align-content: center;
+            justify-content: center;
+            align-items: stretch;
+        }
+
+        /* Display */
+        #number-display {
+            /* width: 100%; */
+            height: 50px;
+            font-size: 24px;
+            text-align: center;
+            border: 1px solid #000;
+            margin-bottom: 10px;
+            padding: 5px;
+            border-radius: 5px;
+            background-color: #e0e0e0;
+        }
+
+        /* Estilo dos botões */
+        .button {
+            width: 100px;
+            height: 60px;
+            margin: 5px;
+            font-size: 24px;
+            font-weight: bold;
+            border: 2px solid #000;
+            border-radius: 5px;
+            background-color: #404040;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background-color: #333;
+        }
+
+        /* Botões especiais */
+        .call-btn {
+            background-color: #00a000;
+            font-size: 12px;
+        }
+
+        .call-btn:hover {
+            background-color: #008000;
+        }
+
+        .hangup-btn {
+            background-color: #a00000;
+            font-size: 12px;
+        }
+        .slice-btn {
+            background-color: #a00000;
+        }
+        .hangup-btn:hover {
+            background-color: #800000;
+        }
+        .slice-btn:hover {
+            background-color: #800000;
+        }
+        .clear-btn {
+            background-color: #ffbf00;
+        }
+
+        .clear-btn:hover {
+            background-color: #e0a000;
+        }
+        .dialer {
+                width: 100%;
+                margin: 0px;
+            }
+
+        /* Estilo do botÃ£o */
+        .start-call-btn {
+            width: 200px;
+            height: 80px;
+            background-color: #404140; /* Verde escuro */
+            color: #ffffff; /* Texto branco */
+            font-family: Arial, sans-serif; /* Fonte limpa */
+            font-size: 18px; /* Tamanho do texto */
+            font-weight: bold; /* Texto em negrito */
+            text-align: center; /* Centralizar texto */
+            border: 2px solid #000000; /* Borda preta */
+            border-radius: 5px; /* Borda arredondada */
+            cursor: pointer; /* Cursor de botÃ£o */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Ãcone do telefone e nome */
+        .start-call-btn .top-section {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0 10px;
+            align-items: center;
+        }
+
+        .start-call-btn .top-section span {
+            font-size: 16px; /* Nome menor */
+            display: flex;
+            align-items: center;
+        }
+
+        .start-call-btn .top-section .number {
+            font-size: 24px; /* NÃºmero maior */
+            font-weight: bold;
+        }
+
+        /* Indicador de status */
+        .start-call-btn .status {
+            background-color: #00a000; /* Verde claro */
+            color: #ffffff;
+            font-size: 16px;
+            padding: 5px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Estilo do Ã­cone */
+        .start-call-btn .icon {
+            margin-right: 8px;
+        }
+
+        /* Efeito hover */
+        .start-call-btn:hover {
+            background-color: #006600; /* Verde mais escuro */
+        }
+        /* Layout responsivo para telas menores que 500px */
+        @media (max-width: 500px) {
+            .dialer-container {
+                max-width: 100%; /* Usa toda a largura disponível */
+                padding: 10px; /* Reduz o padding */
+            }
+            .dialer {
+                width: 100%;
+                margin: 0px;
+            }
+
+            .button {
+                width: calc(33.33% - 20px); /* 3 colunas com espaçamento */
+                height: 50px; /* Reduz altura dos botões */
+                font-size: 18px; /* Ajusta o tamanho do texto */
+                margin: 5px; /* Reduz o espaçamento */
+            }
+
+            .call-btn, .hangup-btn {
+                width: calc(50% - 10px); /* Botões de ação em 2 colunas */
+                height: 50px;
+                font-size: 16px;
+            }
+
+            #number-display {
+                font-size: 20px; /* Reduz o tamanho da fonte do display */
+                height: 40px;
+            }
+        }
+
+
+    </style>
+</head>
+<body>
+    <div class="cards">
+        <!-- <button id="start-call-btn" number="5024" sip="danilo.volz">
+            <div class="top-section">
+                <span><span class="icon">📞</span>Ligar para o Danilo</span>
+                <span class="number">5024</span>
+            </div>
+            <div class="status">Disponí­vel</div>
+        </button>
+    
+        <button id="start-call-btn" number="5027" sip="holz">
+            <div class="top-section">
+                <span><span class="icon">📞</span>Ligar para o Holz</span>
+                <span class="number">5027</span>
+            </div>
+            <div class="status">Disponí­vel</div>
+        </button> -->
+    </div>
+    <div class="dialer">
+        <div class="dialer-container">
+            <!-- Display -->
+            <div id="number-display"></div>
+
+            <!-- Teclado numérico -->
+            <div>
+                <button class="button">1</button>
+                <button class="button">2</button>
+                <button class="button">3</button><br>
+                <button class="button">4</button>
+                <button class="button">5</button>
+                <button class="button">6</button><br>
+                <button class="button">7</button>
+                <button class="button">8</button>
+                <button class="button">9</button><br>
+                <button class="button clear-btn">C</button>
+                <button class="button">0</button>
+                <button class="button slice-btn">X</button>
+            </div>
+
+            <!-- Botões de ação -->
+            <div style="margin-top: 10px;">
+                <button id="" class="button call-btn">Ligar</button>
+                <button id="hangup-btn" class="button hangup-btn">Desligar</button>
+            </div>
+        </div>
+    </div>
+    <div id="cardset-container" style="display: none !important;"></div>
+
+    <!-- Scripts fornecidos -->
+    <script src="widget-ui.js" type="text/javascript" charset="UTF-8"></script>
+    <script src="https://apps.wecom.com.br/wecom.com.br/contact-widgets/innovaphone-widget.js" type="text/javascript" charset="UTF-8"></script>
+    <script>
+        try {
+            innovaphone.widgets.loadWidget(
+                "wss://apps.wecom.com.br/wecom.com.br/contact-widgets/service",
+                "e66f224b41614573baf2ee8b7b04bf24"
+            );
+        } catch (error) {
+            console.error("Erro ao carregar o widget:", error);
+        }
+        // Função para inicializar a chamada
+        let inCall = false;
+        let contactList = []; // Armazena os dados obtidos do GET
+        let currentNumber = ""; // Número digitado
+
+        // Função assíncrona para adicionar ou atualizar um botão dinamicamente
+        async function fetchData(contact) {
+            try {
+                console.log("Novo contato recebido:", contact);
+
+                // Localiza a div 'cards'
+                const cardsContainer = document.querySelector(".cards");
+                if (!cardsContainer) {
+                console.error("Elemento 'cards' não encontrado.");
+                return;
+                }
+
+                // Verifica se o usuário já existe na lista pelo ID (SIP)
+                const existingContactIndex = contactList.findIndex(
+                (c) => c.id === contact.id
+                );
+
+                if (existingContactIndex !== -1) {
+                // Atualiza o botão existente
+                console.log(`Atualizando contato existente: ${contact.dn}`);
+
+                // Localiza o botão pelo atributo 'sip'
+                const existingButton = cardsContainer.querySelector(
+                    `button[sip="${contact.id}"]`
+                );
+
+                if (existingButton) {
+                    existingButton.querySelector(".status").textContent = contact.presence;
+                }
+
+                // Atualiza a lista de contatos
+                contactList[existingContactIndex] = contact;
+                } else {
+                // Adiciona um novo contato à lista e cria o botão
+                console.log(`Adicionando novo contato: ${contact.dn}`);
+                contactList.push(contact);
+
+                // const button = document.createElement("button");
+                // button.setAttribute("number", contact.phonenumber);
+                // button.setAttribute("sip", contact.id);
+                // button.classList.add("start-call-btn");
+
+                // // Conteúdo do botão
+                // button.innerHTML = `
+                //     <div class="top-section">
+                //     <span><span class="icon">📞</span>Ligar para ${contact.dn}</span>
+                //     </div>
+                //     <div class="status">${contact.presence}</div>
+                // `;
+
+                // // Adiciona o evento de clique para o botão
+                // button.addEventListener("click", (ev) => {
+                //     const sip = ev.currentTarget.getAttribute("sip");
+                //     const number = ev.currentTarget.getAttribute("number");
+                //     if (!inCall) {
+                //     console.log(`Iniciando chamada para: SIP: ${sip}, Número: ${number}`);
+
+                //     if (typeof innovaphone.widgets.makeCall === "function") {
+                //         innovaphone.widgets.makeCall(contact.dn, sip);
+                //         console.log(`Chamada iniciada para ${contact.dn}`);
+                //         inCall = true;
+                //     } else {
+                //         console.error("Função makeCall não disponível.");
+                //     }
+                //     } else {
+                //     // Verifica se a função clearCall está disponível
+                //     if (typeof innovaphone.widgets.widget.clearCall === "function") {
+                //         innovaphone.widgets.widget.clearCall();
+                //         console.log("Chamada encerrada com sucesso.");
+                //         inCall = false;
+                //     } else {
+                //         console.error("A função clearCall não está disponível.");
+                //     }
+                //     }
+                // });
+
+                // Adiciona o botão ao container
+                cardsContainer.appendChild(button);
+                }
+            } catch (error) {
+                console.error("Erro ao carregar os dados:", error);
+            }
+        }
+
+        // Expondo a função fetchData no escopo global
+        window.fetchData = fetchData;
+        // Atualiza o display
+        const display = document.getElementById('number-display');
+        function updateDisplay() {
+            display.innerText = currentNumber;
+        }
+
+        // Event listeners para os botões numéricos
+        document.querySelectorAll('.button').forEach(button => {
+            button.addEventListener('click', () => {
+                const value = button.innerText;
+
+                if (value === "C") { // Limpar
+                    currentNumber = "";
+                } else if (value === "X") { // Apagar um número
+                    currentNumber = currentNumber.slice(0, -1);
+                } else if (value === "Ligar") { 
+                    //do nothing
+                } else if (value === "Desligar") { 
+                    //do nothing
+                } else {
+                    currentNumber += value;
+                }
+                updateDisplay();
+            });
+        });
+
+        // Botão Ligar
+        document.querySelector('.call-btn').addEventListener('click', () => {
+            const matchedUser = contactList.find(user => user.phonenumber === currentNumber);
+
+            if (matchedUser && typeof innovaphone.widgets.makeCall === "function") {
+                innovaphone.widgets.makeCall("User CORE", matchedUser.id);
+                console.log("Ligando para:", matchedUser.sip);
+            } else {
+                console.warn("Número não encontrado ou função makeCall indisponível.");
+            }
+        });
+
+        // Botão Desligar
+        document.querySelector('.hangup-btn').addEventListener('click', () => {
+            if (typeof innovaphone.widgets.widget.clearCall === "function") {
+                innovaphone.widgets.widget.clearCall();
+                console.log("Chamada encerrada.");
+            } else {
+                console.warn("Função clearCall não disponível.");
+            }
+        });
+    </script>
+</body>
+</html>

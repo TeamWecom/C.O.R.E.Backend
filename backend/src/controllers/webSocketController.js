@@ -24,7 +24,8 @@ import { makeConference,
     heldIncomingCall,
     retrieveIncomingCall,
     redirectIncomingCall,
-    dtmfIncomingCall 
+    dtmfIncomingCall, 
+    monitorGoogleCalendarCall
 } from './buttonController.js';
 import { send, 
     broadcast, 
@@ -43,7 +44,8 @@ import { licenseFileWithUsage,
 import { restartService } from '../utils/serviceManager.js';
 import { getDetailsForActivity } from '../utils/actionsUtils.js';
 import { openAIRequestTestCredits, openAIRequestTranscription } from '../utils/openAiUtils.js';
-
+import {listCalendars, startOAuthFlow, deleteOAuthFlow, getOngoingEventGuests, loadGoogleTokens} from '../managers/googleCalendarManager.js';
+import { updateButtonNameGoogleCalendar } from '../controllers/buttonController.js';
 export const handleConnection = async (conn, req) => {
     const today = getDateNow();
     const query = parse(req.url, true).query;
@@ -255,11 +257,16 @@ export const handleConnection = async (conn, req) => {
                         conn.send(JSON.stringify({ api: "user", mt: "ConfigResult", result: configResult }));
 
                         const preference = await db.preference.findAll({
+                            attributes:[
+                                'pageName',
+                                'pageNumber'
+                            ],
                             where: {
                                 guid: conn.guid
-                            }
+                            },
+                            order: [['pageNumber', 'asc']]
                         })
-                        conn.send(JSON.stringify({ api: "user", mt: "SelectUserPreferencesResult", result: preference }))
+                        conn.send(JSON.stringify({ api: "user", mt: "SelectUserPreferencesResult", result: preference, guid: conn.guid }))
 
                         const connectionsUser = await getConnections()
                         connectionsUser.forEach(c =>{
@@ -331,11 +338,16 @@ export const handleConnection = async (conn, req) => {
                     //#region PÁGINAS
                     if(obj.mt == "SelectUserPreferences"){
                         const data = await db.preference.findAll({
+                            attributes:[
+                                'pageName',
+                                'pageNumber'
+                            ],
                             where: {
                                 guid: conn.guid
-                            }
+                            },
+                            order: [['pageNumber', 'asc']]
                         })
-                        conn.send(JSON.stringify({ api: "user", mt: "SelectUserPreferencesResult", result: data }))
+                        conn.send(JSON.stringify({ api: "user", mt: "SelectUserPreferencesResult", result: data, guid: conn.guid }))
                     }
                     //#endregion
                     //#region BOTÕES
@@ -369,6 +381,30 @@ export const handleConnection = async (conn, req) => {
 
                         return;
                         
+                    }
+                    if (obj.mt == "TriggerGoogleCalendarCall") {
+                        const btn = await db.button.findOne({where:{id: parseInt(obj.btn_id)}})
+
+                        const guests = await getOngoingEventGuests(btn.calendar_id)
+                        if(guests.length>0){
+                            const sip = guests[0].email.split('@')[0];
+                            const usersInn = await pbxTableUsers()
+                            const userInn = usersInn.filter(u => u.sip == sip)[0]
+                            if(userInn){
+                                let result = await makeCall(conn.guid, obj.btn_id, btn.button_device, userInn.e164)
+                                log("webSocketController:TriggerGoogleCalendarCall: result : " + JSON.stringify(result));
+                                conn.send(JSON.stringify({ api: "user", mt: "TriggerCallResult", result: result }));
+                            }else{
+                                log("webSocketController:TriggerGoogleCalendarCall: no userInn to this guest " + JSON.stringify(userInn));
+                            }
+                            if(guests.length>1){
+                                //Start call monitor function to redirect if its not answered
+                                monitorGoogleCalendarCall(btn, guests, usersInn)
+                            }
+                        }else{
+                            log("webSocketController:TriggerGoogleCalendarCall: no gusts at this moment " + JSON.stringify(userInn));
+                        }
+                        return; 
                     }
                     if (obj.mt == "TriggerConference") {
                         
@@ -510,6 +546,7 @@ export const handleConnection = async (conn, req) => {
                         }
                         log("webSocketController:TriggerStartOpt: will insert it on DB : " + JSON.stringify(msg));
                         var result = await db.activity.create(msg)
+                        result.details = btn;
                         conn.send(JSON.stringify({ api: "user", mt: "getHistoryResult", result: [result] }));
                     }
                     if (obj.mt == "TriggerCombo") {
@@ -534,7 +571,7 @@ export const handleConnection = async (conn, req) => {
                         log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                     }
                     if (obj.mt == "SelectButtons") { //Chamado quando o app é aberto e retorna todos os botões do usuário
-                        selectButtons(conn.guid)
+                        await selectButtons(conn.guid, obj.api)
                         break;
                     }
                     if (obj.mt == "TriggerAlarm") { //Chamado quando o usuário pressiona um Botão de alarme na tela
@@ -710,32 +747,38 @@ export const handleConnection = async (conn, req) => {
                     //#region PÁGINAS 
                     if(obj.mt == "SelectUserPreferences"){
                         const data = await db.preference.findAll({
+                            attributes:[
+                                'pageName',
+                                'pageNumber'
+                            ],
                             where: {
                                 guid: obj.guid
-                            }
+                            },
+                            order: [['pageNumber', 'asc']]
                         })
-                        conn.send(JSON.stringify({ api: "admin", mt: "SelectUserPreferencesResult", result: data }))
+                        conn.send(JSON.stringify({ api: "admin", mt: "SelectUserPreferencesResult", result: data, guid: obj.guid }))
                     }
                     if (obj.mt == "SetPageName") {
-                        const pageKey = `page${obj.pageNumber}`;
-                        const data = await db.preference.update(
+                        const [record, created] = await db.preference.upsert(
                             { 
-                                [pageKey]: String(obj.pageName)
+                                pageNumber: parseInt(obj.pageNumber),
+                                pageName: String(obj.pageName),
+                                guid: obj.guid
 
-                            },
-                            { 
-                                where: { 
-                                    guid: obj.guid
-                                }
                             }
                         );
 
                         const result = await db.preference.findAll({
+                            attributes:[
+                                'pageName',
+                                'pageNumber'
+                            ],
                             where: {
                                 guid: obj.guid
-                            }
+                            },
+                            order: [['pageNumber', 'asc']]
                         })
-                        conn.send(JSON.stringify({ api: "admin", mt: "SelectUserPreferencesResult", result: result }))
+                        conn.send(JSON.stringify({ api: "admin", mt: "SelectUserPreferencesResult", result: result, guid: obj.guid }))
                     }
 
                     //#endregion
@@ -859,6 +902,27 @@ export const handleConnection = async (conn, req) => {
                         const updateConfigResult = await db.config.findAll();
                         conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: updateConfigResult }));
                     }
+                    if (obj.mt == "UpdateConfigGoogleCalendar") {
+                        const backupFields = {
+                            "googleClientId": obj.googleClientId,
+                            "googleClientSecret": obj.googleClientSecret,
+                          };
+                        
+                          try {
+                            for (const [entry, value] of Object.entries(backupFields)) {
+                              // Atualizar ou criar se não existir
+                              await db.config.update({ value }, {
+                                where: { entry }
+                              });
+                            }
+                            log('webSocketController:UpdateConfigGoogleCalendar: Config atualizado com sucesso!');
+                          } catch (error) {
+                            log('webSocketController:UpdateConfigGoogleCalendar: Erro ao atualizar config:'+ error);
+                          }
+
+                        const updateConfigResult = await db.config.findAll();
+                        conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: updateConfigResult }));
+                    }
                     //#endregion
                     //#region LICENSE
                     if (obj.mt == "ConfigLicense") {
@@ -917,6 +981,7 @@ export const handleConnection = async (conn, req) => {
                             button_device : String(obj.device),
                             img : String(obj.img),
                             gateway_id : obj.gateway_id,
+                            calendar_id : obj.calendar_id,
                             create_user : String(conn.guid),
                             page : String(obj.page),
                             position_x : String(obj.x),
@@ -925,8 +990,17 @@ export const handleConnection = async (conn, req) => {
 
                         } 
                         const insertButtonResult = await db.button.create(objToInsert)
-                        conn.send(JSON.stringify({ api: "admin", mt: "InsertButtonSuccess", result: insertButtonResult }));
-                        send(obj.guid,{ api: "user", mt: "IncreaseButtons", result: insertButtonResult })
+                        const insertButtonResultJSON = insertButtonResult.toJSON();
+                        if(insertButtonResultJSON.button_type =='google_calendar'){
+                            const calendars = await listCalendars();
+                            const calendar = calendars.filter((c)=>{c.id == insertButtonResultJSON.button_name})[0]
+                            if(calendar){
+                                insertButtonResultJSON.button_name = calendar.summary;
+                            }
+                        }
+
+                        conn.send(JSON.stringify({ api: "admin", mt: "InsertButtonSuccess", result: insertButtonResultJSON }));
+                        send(obj.guid,{ api: "user", mt: "IncreaseButtons", result: insertButtonResultJSON })
                     }
                     if (obj.mt == "UpdateButton") {
                         const objToUpdate = {
@@ -937,6 +1011,7 @@ export const handleConnection = async (conn, req) => {
                             button_device : String(obj.device),
                             img: String(obj.img),
                             gateway_id : obj.gateway_id,
+                            calendar_id : obj.calendar_id,
                             page : String(obj.page),
                             position_x : String(obj.x),
                             position_y: String(obj.y),
@@ -949,15 +1024,18 @@ export const handleConnection = async (conn, req) => {
                             },
                             });
 
-                            const objToResult = await db.button.findOne({
-                            where: {
-                                id: obj.id,
-                            },
-                            });
+                        const objToResult = await db.button.findOne({
+                        where: {
+                            id: obj.id,
+                        },
+                        });
+                        const objToResultJSON = objToResult.toJSON();
+                        const updatedButton = await updateButtonNameGoogleCalendar(objToResultJSON);
+                        
 
-                        conn.send(JSON.stringify({ api: "admin", mt: "UpdateButtonSuccess", result: objToResult }));
+                        conn.send(JSON.stringify({ api: "admin", mt: "UpdateButtonSuccess", result: updatedButton }));
 
-                        send(obj.guid,{ api: "user", mt: "UpdateButtonSuccess", result: objToResult })
+                        send(obj.guid,{ api: "user", mt: "UpdateButtonSuccess", result: updatedButton })
                     }
                     if (obj.mt == "UpdateSensorButton") {
                         const objToUpdate = {
@@ -1043,8 +1121,8 @@ export const handleConnection = async (conn, req) => {
                         
                     }
                     if (obj.mt == "SelectButtons") {
-                        const allButtons = await db.button.findAll();
-                        conn.send(JSON.stringify({ api: "admin", mt: "SelectButtonsSuccess", result: JSON.stringify(allButtons, null, 4) }));
+                        await selectButtons(conn.guid, obj.api);
+                        break;
                     }
                     if (obj.mt == "DeleteButtons") {
                         const btnDeleted = await db.button.findOne({
@@ -1663,6 +1741,40 @@ export const handleConnection = async (conn, req) => {
 
                     }
                     //#endregion
+                    // #region Google OAuth
+                    if(obj.mt =="RequestGoogleOAuthStatus"){
+                        // Início do fluxo
+                        const status = await loadGoogleTokens();
+                        send(conn.guid, { api: "admin", mt: "RequestGoogleOAuthStatusResult", result: status });
+                        
+                    }
+                    if(obj.mt =="RequestGoogleOAuth"){
+                        // Início do fluxo
+                        startOAuthFlow(conn.guid)
+                        .then(async () => {
+                        
+                            log('webSocketController:RequestGoogleCalendars: Ok');
+                        })
+                        .catch((err) => log(`webSocketController:RequestGoogleCalendars: Erro:${err}`));
+                    }
+                    if (obj.mt === "RequestGoogleOAuthRemove") {
+                        deleteOAuthFlow(conn.guid)
+                          .then(() => log("webSocketController:RequestGoogleOAuthRemove: Ok"))
+                          .catch((err) => log(`webSocketController:RequestGoogleOAuthRemove: Erro: ${err}`));
+                      }
+                      
+                    if(obj.mt =="RequestGoogleCalendars"){
+                        const calendars = await listCalendars();
+                        log(`webSocketController:RequestGoogleCalendars: lenght:${calendars.length}`);
+                        send(conn.guid, { api: "admin", mt: "RequestGoogleCalendarsResult", result: calendars });
+                    }
+                    if(obj.mt =="RequestOngoingEventGuests"){
+                        const guests = await getOngoingEventGuests(obj.id);
+                        log(`webSocketController:RequestOngoingEventGuests: lenght:${guests.length}`);
+                        send(conn.guid, { api: "admin", mt: "RequestOngoingEventGuestsResult", result: guests });
+                    }
+                    
+                    // #endregion
                     break;
             }
         } catch (error) {

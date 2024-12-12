@@ -22,13 +22,15 @@ import {innovaphoneMakeCall,
     innovaphoneHeldIncomingCall,
     innovaphoneRetrieveIncomingCall,
     innovaphoneRedirectIncomingCall,
-    innovaphoneDtmfIncomingCall
+    innovaphoneDtmfIncomingCall,
+    pbxTableUsers
 } from '../controllers/innovaphoneController.js';
 dotenvConfig();
 
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { getDevices } from './milesightController.js';
+import { listCalendars, getOngoingEventGuests } from '../managers/googleCalendarManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -244,6 +246,15 @@ export const makeCall = async (guid, btn_id, device, num) => {
                     id: btn_id
                 }
             })
+
+            if(btn.button_type == 'user'){
+                const usersInn = await pbxTableUsers()
+                const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
+                btn.button_prt = userInn.e164
+            }
+            if(btn.button_type == 'google_calendar'){
+                btn.button_prt = num;
+            }
             
 
             let result = await db.call.create({
@@ -661,7 +672,7 @@ export const clearCall = async (guid, btn_id, device, call) => {
             let callInCurse = await db.call.findOne({
                 where: {
                   guid: guid,
-                  number: btn.button_prt,
+                  btn_id: btn.id,
                   status: 1
                 },
                 order: [
@@ -958,15 +969,30 @@ export const triggerStopAlarm = async (guid, btn) => {
     }
 
 }
-export const selectButtons = async (guid) => {
-    log("buttonController::SelectButtons " + guid)
-    let result = await db.button.findAll({
-        where: {
-          button_user: guid // Filtra os botões pelo valor do campo button_user igual ao valor de guid
-        }
-      });
-    log("buttonController::SelectButtons result= " + result.length + " buttons for user "+guid);
-    send(guid,{ api: "user", mt: "SelectButtonsSuccess", result: result});
+export const selectButtons = async (guid, api) => {
+    let result
+    if(api=="user"){
+        log("buttonController::SelectButtons: " + guid)
+        result = await db.button.findAll({
+            where: {
+              button_user: guid // Filtra os botões pelo valor do campo button_user igual ao valor de guid
+            }
+          });
+        log("buttonController::SelectButtons: result= " + result.length + " buttons for user "+guid);
+    }else{
+        log("buttonController::SelectButtons: all")
+        result = await db.button.findAll();
+        log("buttonController::SelectButtons: result= " + result.length + " buttons for all user");
+    }
+    const buttons = await Promise.all(result.map(async (b) => b.toJSON()));
+
+    // Executa a função `updateButtonNameGoogleCalendar` para cada botão
+    const updatedButtons = await Promise.all(
+        buttons.map(async (button) => await updateButtonNameGoogleCalendar(button))
+    );
+
+
+    send(guid,{ api: api, mt: "SelectButtonsSuccess", result: updatedButtons});
     
     //Aproveitamos para enviar a lista de alarmes ativos que estejam entre os botões desse usuário
     getActiveAlarmHistory(guid)
@@ -974,6 +1000,56 @@ export const selectButtons = async (guid) => {
     //Aproveitamos para enviar a lista de status dos controllers que estejam entre os botões desse usuário
     getControllerStatusByGuid(guid, result)
 }
+export const updateButtonPrtGoogleCalendar = async (bJSON, sip) => {
+    try{
+        const innoUsers = await pbxTableUsers();
+
+        const userInno = innoUsers.find((u) => u.sip == sip)
+        log('buttonController:updateButtonPrtGoogleCalendar: userInno '+ JSON.stringify(userInno));
+        if(userInno){ 
+            bJSON.button_prt = userInno.guid;
+            const objToUpdateResult = await db.button.update(bJSON,
+                {
+                where: {
+                    id: parseInt(bJSON.id),
+                },
+            });
+        }
+        return bJSON;
+    }catch(e){
+        return bJSON;
+    }
+    
+}
+export const updateButtonNameGoogleCalendar = async (button) => {
+    try {
+      // Verifica se o botão é do tipo "google_calendar"
+      if (button.button_type === "google_calendar") {
+        const calendars = await listCalendars(); // Lista os calendários uma vez
+        const calendar = calendars.find((c) => c.id === button.calendar_id);
+        if (calendar) {
+          button.button_name = calendar.summary; // Atualiza o nome do botão
+          const guests = await getOngoingEventGuests(calendar.id);
+          if(guests.length > 0){
+            log(`butonController:updateButtonNameGoogleCalendar: ${guests.length} guests for button google_calendar ${button.button_name}`);
+            const sip = guests[0].email.split('@')[0];
+            button = await updateButtonPrtGoogleCalendar(button, sip);
+          }else{
+            log(`butonController:updateButtonNameGoogleCalendar: no guests for button google_calendar ${button.button_name}`);
+          }
+        }
+      }
+      return button; // Retorna o botão atualizado
+    } catch (e) {
+      log(
+        "buttonController:updateButtonNameGoogleCalendar: Erro ao atualizar o botão: " +
+          e
+      );
+      return button; // Retorna o botão original em caso de erro
+    }
+  };
+  
+  
 export const getActiveAlarmHistory = async (guid) => {
     let activeAlarms = await db.activeAlarms.findAll();
     log("alarmController::getActiveAlarmHistory result activeAlarms= " + activeAlarms.length+ " for user guid "+guid);
@@ -1013,7 +1089,10 @@ export const getControllerStatusByGuid = async (guid, buttons) => {
             order: [['id', 'desc']],
             limit: 1,
         })
-        send(guid, {api:"user", mt:"ControllerReceived", btn_id:b.id, prt:b.button_prt, value:value[b.button_prt]})
+
+        // Garante que value existe antes de acessar a propriedade
+        const propertyValue = value ? value[b.button_prt] : null;
+        send(guid, {api:"user", mt:"ControllerReceived", btn_id:b.id, prt:b.button_prt, value: propertyValue})
     })
     log("buttonController::getControllerStatusByGuid result= " + commandButtons.length + " controller buttons for user " + guid);
 
@@ -1174,6 +1253,90 @@ export const makeConference = async (guid, btn_id, calls) => {
         return e
     }  
 }
+export const monitorGoogleCalendarCall = async (btn, guests, usersInn) => {
+    try {
+        log("buttonController:monitorGoogleCalendarCall: Iniciando monitoramento de chamadas...");
+        
+        // Função auxiliar para calcular o tempo decorrido em segundos
+        const getElapsedTime = (startTime) => {
+            const now = new Date();
+            return Math.floor((now - new Date(startTime)) / 1000);
+        };
+
+        // Loop que verifica a cada 5 segundos
+        const intervalId = setInterval(async () => {
+            log("buttonController:monitorGoogleCalendarCall: Verificando chamadas...");
+
+            // Buscar a chamada em andamento
+            const callInCourse = await db.call.findOne({
+                where: {
+                    btn_id: btn.id,
+                    status: 1, // Status 1 indica chamada em andamento
+                },
+            });
+
+            // Verificar se existe uma chamada em andamento
+            if (callInCourse) {
+                log("buttonController:monitorGoogleCalendarCall: Chamada encontrada:"+ callInCourse.id);
+
+                if (callInCourse.call_connected === null) {
+                    const elapsedTime = getElapsedTime(callInCourse.call_started);
+
+                    if (elapsedTime >= 30) {
+                        log(
+                            `buttonController:monitorGoogleCalendarCall: Chamada não conectada após ${elapsedTime} segundos. Processando...`
+                        );
+                        const userInn = usersInn.filter(u => u.e164 == callInCourse.number)[0]
+                        if (userInn) {
+                            log(`buttonController:monitorGoogleCalendarCall: Usuário correspondente encontrado: ${userInn.sip}`);
+
+                            // Procurar o índice correspondente no array guests
+                            const guestIndex = guests.findIndex(
+                                (guest) => guest.email.split('@')[0] == userInn.sip
+                            );
+
+                            if (guestIndex !== -1) {
+                                log(`buttonController:monitorGoogleCalendarCall: Índice correspondente no array guests: ${guestIndex}`);
+                                if(guests.length-1 > guestIndex){
+                                    const resultClear = await clearCall(btn.button_user, btn.id, btn.button_device, callInCourse.call_innovaphone);
+                                    log("buttonController:monitorGoogleCalendarCall: clear old call result : " + JSON.stringify(resultClear));
+                                    const newIndex = guestIndex+1;
+                                    const newUserInn = usersInn.filter(u => u.sip == guests[newIndex].email.split('@')[0])[0]
+                                    const resultMake = await makeCall(btn.button_user, btn.id, btn.button_device, newUserInn.e164);
+                                    log("buttonController:monitorGoogleCalendarCall: start new call result : " + JSON.stringify(resultMake));
+                                }else{
+                                    log(`buttonController:monitorGoogleCalendarCall: Estamos Ligando para o último usuário da lista de Guests do Evento. Encerrando Loop`);
+                                    clearInterval(intervalId); // Encerra o loop
+                                }
+                            } else {
+                                log(`buttonController:monitorGoogleCalendarCall: Nenhum índice correspondente encontrado no array guests. Encerrando loop`);
+                                clearInterval(intervalId); // Encerra o loop
+                            }
+                        } else {
+                            log(`buttonController:monitorGoogleCalendarCall: Nenhum usuário correspondente encontrado em usersInn. Encerrando loop`);
+                            clearInterval(intervalId);
+                        }
+
+                    } else {
+                        log(
+                            `buttonController:monitorGoogleCalendarCall: Chamada não conectada. Tempo decorrido: ${elapsedTime} segundos. Aguardando...`
+                        );
+                    }
+                } else {
+                    log("buttonController:monitorGoogleCalendarCall: Chamada conectada! Encerrando loop...");
+                    clearInterval(intervalId); // Encerra o loop
+                }
+            } else {
+                log("buttonController:monitorGoogleCalendarCall: Nenhuma chamada em andamento encontrada. Encerrando loop...");
+                clearInterval(intervalId); // Encerra o loop
+            }
+        }, 5000); // Repetir a cada 5 segundos
+    } catch (e) {
+        log("buttonController:monitorGoogleCalendarCall: Erro no monitoramento de chamadas:"+ e);
+    }
+};
+
+
 function verificarThresholds(data, buttons) {
     var ativos = [];
     //log("actionController:verificarAcoes:parameters data" + JSON.stringify(data))

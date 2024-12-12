@@ -39,18 +39,40 @@ export const createUser = async (token, userData) => {
         log("authController:createUser: Limite de usuáros atingido, contratar nova licença: " + type);
         throw new Error('noMoreLicenses');
     }
-
+    const newGuid = String(generateRandomBigInt(19));
     const obj = {
         name,
-        guid: String(generateRandomBigInt(19)),
+        guid: newGuid,
         sip,
         email,
         password: await bcrypt.hash(password, 15),
         createdAt: new Date().toISOString().slice(0, 16),
         type
     };
+    try {
+        // Insere os dados na tabela
+        await db.user.create(obj);
+    } catch (error) {
+        log('authController:createUser: Erro ao inserir os dados de usuário:'+ error);
+        throw new Error(error);
+    }
+    // Dados a serem inseridos de preferencias
+    const preferences = [
+        { guid: newGuid, pageNumber: 1 },
+        { guid: newGuid, pageNumber: 2 },
+        { guid: newGuid, pageNumber: 3 },
+        { guid: newGuid, pageNumber: 4 },
+        { guid: newGuid, pageNumber: 5 },
+    ];
 
-    await db.user.create(obj);
+    try {
+        // Insere os dados na tabela usando bulkCreate
+        await db.preferences.bulkCreate(preferences);
+    } catch (error) {
+        log('authController:createUser: Erro ao inserir os dados de preferencias:'+ error);
+        throw new Error(error);
+    }
+
     log("authController:createUser: Usuário criado: " + email);
     const decodedText = Buffer.from(password, 'base64').toString('utf-8');
     const body = `<!DOCTYPE html>

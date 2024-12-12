@@ -14,6 +14,7 @@ import cors from 'cors';
 import WebSocket, { WebSocketServer } from 'ws';
 import AlexaRouter from './routes/alexaRoutes.js';
 import {checkBackupRoutine} from './utils/dbMaintenance.js';
+import {loadGoogleTokens, loopGetOngoingEventGuests} from './managers/googleCalendarManager.js';
 ///import WebSocket from 'ws';
 const app = express();
 
@@ -38,6 +39,8 @@ import aedes from 'aedes';
 import net from 'net';
 import mqttRoutes from './routes/mqttRoutes.js';
 import FlicRouter from './routes/flicRoutes.js';
+import {returnContacts} from './utils/ldapUtils.js';
+import{ initGoogleOAuth} from './managers/googleCalendarManager.js'
 
 bodyParserXml(bodyParser);
 
@@ -239,3 +242,13 @@ if(decryptedLicense && decryptedLicense.flic == true){
 
 //Recria rotina de Backups
 checkBackupRoutine();
+
+//Google Calendar
+await initGoogleOAuth();
+const isGoogleOk = await loadGoogleTokens();
+if(isGoogleOk){
+    loopGetOngoingEventGuests();
+}
+
+//teste ldap Innovaphone
+returnContacts()
