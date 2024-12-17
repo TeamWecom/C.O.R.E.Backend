@@ -128,7 +128,8 @@ export const innovaphoneMakeCall = async (btn, user, device, num) => {
                 num: num, 
                 mode: 'MakeCall', 
                 guid: user.sip, 
-                device: device
+                device: device,
+                btn_id: ''
             }
 
         }

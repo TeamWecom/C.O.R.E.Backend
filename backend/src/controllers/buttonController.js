@@ -299,7 +299,8 @@ export const makeCall = async (guid, btn_id, device, num) => {
                 call_started: getDateNow(),
                 status: 1,
                 direction: "out",
-                device: device
+                device: device,
+                btn_id: ""
             })
             log("buttonController:MakeCall: db.create.call success " + result.id);
             log("buttonController:MakeCall: pbxType " + pbxType.value);
@@ -1014,6 +1015,14 @@ export const updateButtonPrtGoogleCalendar = async (bJSON, sip) => {
                     id: parseInt(bJSON.id),
                 },
             });
+        }else{
+            bJSON.button_prt = "";
+            const objToUpdateResult = await db.button.update(bJSON,
+                {
+                where: {
+                    id: parseInt(bJSON.id),
+                },
+            });
         }
         return bJSON;
     }catch(e){
@@ -1036,6 +1045,7 @@ export const updateButtonNameGoogleCalendar = async (button) => {
             button = await updateButtonPrtGoogleCalendar(button, sip);
           }else{
             log(`butonController:updateButtonNameGoogleCalendar: no guests for button google_calendar ${button.button_name}`);
+            button = await updateButtonPrtGoogleCalendar(button, null);
           }
         }
       }
