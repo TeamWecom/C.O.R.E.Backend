@@ -22,6 +22,7 @@ import process from 'process';
 import { getSystemPreferences } from '../utils/serviceManager.js'
 import { getTokens, loadGoogleTokens } from '../managers/googleCalendarManager.js';
 import { broadcast } from '../managers/webSocketManager.js';
+import { sendSms } from '../managers/awsManager.js';
 const env = process.env.NODE_ENV || 'development';
 
 const router = express.Router();
@@ -482,4 +483,32 @@ router.get('/google-oauth-callback', async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+
+//Rota para enviar SMS
+router.post('/sendSms', async (req, res) => {
+    try{
+
+        const token = req.headers['x-auth'] || '';
+        const decoded = await validateToken(token);
+        const user = await db.user.findOne({ where: { id: decoded.id } });
+
+        if (!user) {
+            log("webServerAPIRoutes:sendSms: ID no Token JWT inválido");
+            res.status(401).send('Token de autenticação inválido');
+            return;
+        }
+        const body = req.body;
+        await sendSms(body.cgpn, body.msg)
+        .then((result)=>{
+            res.status(200).send(result);
+
+        }).catch((e)=>{
+            res.status(500).send(e);
+        })
+    }catch(e){
+        log("webServerAPIRoutes:sendSms: Erro" +e);
+        res.status(404).send('Erro'+e);
+        return;
+    }
+})
 export default router;

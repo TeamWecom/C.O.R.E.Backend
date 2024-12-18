@@ -24,6 +24,7 @@
     "aedes": "^0.51.3",
     "archiver": "",
     "atob": "^2.1.2",
+    "aws-sdk": "^2.1692.0",
     "axios": "^1.7.2",
     "basic-ftp": "^5.0.5",
     "bcryptjs": "^2.4.3",

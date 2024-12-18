@@ -263,7 +263,7 @@ export const innovaphoneRedirectCall = async (btn, user, destination, device, ca
                 const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
                 btn.button_prt = userInn.e164
             }
-            objCall = { num: btn.button_prt, 
+            objCall = { 
                 mode: 'RedirectCall', 
                 guid: user.sip, 
                 device: btn.button_device,
@@ -271,7 +271,8 @@ export const innovaphoneRedirectCall = async (btn, user, destination, device, ca
                 destination: destination
             }
         }else{
-            objCall = { mode: 'RedirectCall', 
+            objCall = { 
+                mode: 'RedirectCall', 
                 guid: user.sip, 
                 device: device,
                 btn_id: '',
@@ -416,14 +417,15 @@ export const innovaphoneRetrieveCall = async (btn, user, device, call) => {
                 const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
                 btn.button_prt = userInn.e164
             }
-            objCall = { num: btn.button_prt, 
+            objCall = {
                 mode: 'RetrieveCall', 
                 guid: user.sip, 
                 device: btn.button_device,
                 btn_id: btn.id
             }
         }else{
-            objCall = {mode: 'RetrieveCall', 
+            objCall = {
+                mode: 'RetrieveCall', 
                 guid: user.sip, 
                 device: device,
                 call: call,
@@ -1248,10 +1250,6 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
 
             if(payload == 'opus'){
                 log(`innovaphoneController:convertRecordingPcapToWav: OPUS CODEC DETECTED`);
-
-                //atualizar o hotorico do usuário com o record_link
-                const call = await updateUserHistoryByRecordFilename(filenameBase)
-
                 return await convertOpusPcapToOpus(pcapFilePath, outputDirectory, filenameBase)
             }
 
@@ -1399,7 +1397,8 @@ export const convertRecordingPcapToWavffmpeg = async (pcapFilePath, outputDirect
 //Função auxiliar Converter OPUS PARA AUDIO
 export const convertOpusPcapToOpus = async (pcapFilePath, outputDirectory, filenameBase) => {
     try {
-        const wavFilePath = path.join(outputDirectory, filenameBase + '.opus');
+        const opusFilePath = path.join(outputDirectory, filenameBase + '.opus');
+        const wavFilePath = path.join(outputDirectory, filenameBase + '.wav');
         const rawFilePath = path.join(outputDirectory, filenameBase + '.txt');
         log(`innovaphoneController:convertOpusPcapToOpus: pcapFilePath: ${pcapFilePath}`);
 
@@ -1448,32 +1447,54 @@ export const convertOpusPcapToOpus = async (pcapFilePath, outputDirectory, filen
 
                 log(`innovaphoneController:convertOpusPcapToOpus: tshark extraction complete: ${rawFilePath}`);
                 // Extrair o payload RTP Opus do arquivo .pcap
-                const conversionCommand = `python3 ./utils/hex_to_opus.py -x ${rawFilePath} --recordfile ${wavFilePath} --rtpoffset 42 --payloadtype ${payloadtype}`;
+                const conversionCommand = `python3 ./utils/hex_to_opus.py -x ${rawFilePath} --recordfile ${opusFilePath} --rtpoffset 42 --payloadtype ${payloadtype}`;
                 log(`innovaphoneController:convertOpusPcapToOpus: Conversion Command: ${conversionCommand}`);
-                exec(conversionCommand, (err, stdout, stderr) => {
+                exec(conversionCommand, async (err, stdout, stderr) => {
                     if (err) {
                         log(`innovaphoneController:convertOpusPcapToOpus: Error running python: ${stderr}`);
                         return err;
                     }
 
-                    log(`innovaphoneController:convertOpusPcapToOpus: python conversion complete: ${wavFilePath}`);
+                    log(`innovaphoneController:convertOpusPcapToOpus: python conversion complete: ${opusFilePath}`);
 
-                    // Remover arquivos .pcap e .raw após o sucesso
-                    fs.unlink(rawFilePath, (err) => {
-                        if (err) {
-                            log(`innovaphoneController:convertOpusPcapToOpus: Error deleting raw file: ${err}`);
-                        } else {
-                            log(`innovaphoneController:convertOpusPcapToOpus: Deleted raw file: ${rawFilePath}`);
+                    //Converter o arquivo .opus em .wav usando o ffmpeg
+                    await convertOpusToWav(opusFilePath, wavFilePath)
+                    .then(async(result) =>{
+                        log(`innovaphoneController:convertOpusPcapToOpus:convertOpusToWav: final record wav ${result}`)
+                        if(result){
+                            // Remover arquivos .raw após o sucesso
+                            fs.unlink(rawFilePath, (err) => {
+                                if (err) {
+                                    log(`innovaphoneController:convertOpusPcapToOpus: Error deleting raw file: ${err}`);
+                                } else {
+                                    log(`innovaphoneController:convertOpusPcapToOpus: Deleted raw file: ${rawFilePath}`);
+                                }
+                            });
+                            //delete .pcap file
+                            fs.unlink(pcapFilePath, (err) => {
+                                if (err) {
+                                    log(`innovaphoneController:convertOpusPcapToOpus: Error deleting pcap file: ${err}`);
+                                } else {
+                                    log(`innovaphoneController:convertOpusPcapToOpus: Deleted pcap file: ${pcapFilePath}`);
+                                }
+                            });
+                            //delete .opus file
+                            fs.unlink(opusFilePath, (err) => {
+                                if (err) {
+                                    log(`innovaphoneController:convertOpusPcapToOpus: Error deleting opus file: ${err}`);
+                                } else {
+                                    log(`innovaphoneController:convertOpusPcapToOpus: Deleted opus file: ${opusFilePath}`);
+                                }
+                            });
                         }
-                    });
+                    })
+                    .catch(async(e)=>{
+                        log(`innovaphoneController:convertOpusPcapToOpus:convertOpusToWav: error ${e}`)
+                    })
 
-                    fs.unlink(pcapFilePath, (err) => {
-                        if (err) {
-                            log(`innovaphoneController:convertOpusPcapToOpus: Error deleting pcap file: ${err}`);
-                        } else {
-                            log(`innovaphoneController:convertOpusPcapToOpus: Deleted pcap file: ${pcapFilePath}`);
-                        }
-                    });
+                    
+                    //atualizar o hotorico do usuário com o record_link
+                    const call = await updateUserHistoryByRecordFilename(filenameBase)
 
                     return wavFilePath;
                 });
@@ -1483,6 +1504,29 @@ export const convertOpusPcapToOpus = async (pcapFilePath, outputDirectory, filen
         return e;
     }
 };
+
+async function convertOpusToWav(inputFile, outputFile) {
+    return new Promise((resolve, reject) => {
+        try{
+            const command = `ffmpeg -i ${inputFile} -acodec pcm_s16le -ar 44100 ${outputFile}`;
+      
+            exec(command, (error, stdout, stderr) => {
+              if (error) {
+                log(`innovaphoneController:convertOpusToWav: Erro ao converter arquivo: ${error.message}`);
+                return resolve();
+              }
+              if (stderr) {
+                log(`innovaphoneController:convertOpusToWav: FFmpeg log: ${stderr}`);
+              }
+              log(`innovaphoneController:convertOpusToWav: Arquivo convertido com sucesso: ${outputFile}`);
+              return resolve(outputFile);
+            });
+        }catch(e){
+            log(`innovaphoneController:convertOpusToWav: Erro ao converter arquivo: ${e.message}`);
+            return resolve();
+        }
+    });
+  }
 
 export async function returnRecordLink(recordList) {
     return new Promise((resolve, reject) => {

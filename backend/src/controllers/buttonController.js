@@ -338,7 +338,7 @@ export const heldCall = async (guid, btn_id, device, call) => {
             //const callid = random.generateRandomBigInt(19);
             const btn = await db.button.findOne({
                 where: {
-                    id: btn_id
+                    id: parseInt(btn_id)
                 }
             })
             
@@ -346,7 +346,7 @@ export const heldCall = async (guid, btn_id, device, call) => {
             let call = await db.call.findOne({
                 where: {
                 guid: guid,
-                number: btn.button_prt,
+                btn_id: btn.id,
                 status: 1
                 },
                 order: [
@@ -423,7 +423,7 @@ export const retrieveCall = async (guid, btn_id, device, call) => {
             //const callid = random.generateRandomBigInt(19);
             const btn = await db.button.findOne({
                 where: {
-                    id: btn_id
+                    id: parseInt(btn_id)
                 }
             })
             
@@ -431,7 +431,7 @@ export const retrieveCall = async (guid, btn_id, device, call) => {
             let call = await db.call.findOne({
                 where: {
                 guid: guid,
-                number: btn.button_prt,
+                btn_id:btn.id,
                 status: 1
                 },
                 order: [
@@ -1003,18 +1003,28 @@ export const selectButtons = async (guid, api) => {
 }
 export const updateButtonPrtGoogleCalendar = async (bJSON, sip) => {
     try{
-        const innoUsers = await pbxTableUsers();
+        if(sip){
+            const innoUsers = await pbxTableUsers();
 
-        const userInno = innoUsers.find((u) => u.sip == sip)
-        log('buttonController:updateButtonPrtGoogleCalendar: userInno '+ JSON.stringify(userInno));
-        if(userInno){ 
-            bJSON.button_prt = userInno.guid;
-            const objToUpdateResult = await db.button.update(bJSON,
-                {
-                where: {
-                    id: parseInt(bJSON.id),
-                },
-            });
+            const userInno = innoUsers.find((u) => u.sip == sip)
+            log('buttonController:updateButtonPrtGoogleCalendar: userInno '+ userInno.cn+ 'to the guest '+ sip);
+            if(userInno){ 
+                bJSON.button_prt = userInno.guid;
+                const objToUpdateResult = await db.button.update(bJSON,
+                    {
+                    where: {
+                        id: parseInt(bJSON.id),
+                    },
+                });
+            }else{
+                bJSON.button_prt = "";
+                const objToUpdateResult = await db.button.update(bJSON,
+                    {
+                    where: {
+                        id: parseInt(bJSON.id),
+                    },
+                });
+            }
         }else{
             bJSON.button_prt = "";
             const objToUpdateResult = await db.button.update(bJSON,
@@ -1026,6 +1036,7 @@ export const updateButtonPrtGoogleCalendar = async (bJSON, sip) => {
         }
         return bJSON;
     }catch(e){
+        log('buttonController:updateButtonPrtGoogleCalendar: Erro '+ e);
         return bJSON;
     }
     
