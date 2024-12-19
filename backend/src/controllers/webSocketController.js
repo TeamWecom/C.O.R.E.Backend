@@ -46,6 +46,7 @@ import { getDetailsForActivity } from '../utils/actionsUtils.js';
 import { openAIRequestTestCredits, openAIRequestTranscription } from '../utils/openAiUtils.js';
 import {listCalendars, startOAuthFlow, deleteOAuthFlow, getOngoingEventGuests, loadGoogleTokens} from '../managers/googleCalendarManager.js';
 import { updateButtonNameGoogleCalendar } from '../controllers/buttonController.js';
+import { initAwsSNS } from '../managers/awsManager.js';
 export const handleConnection = async (conn, req) => {
     const today = getDateNow();
     const query = parse(req.url, true).query;
@@ -848,6 +849,7 @@ export const handleConnection = async (conn, req) => {
                                 where: { entry }
                               });
                             }
+                            conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSuccess", result: [8] }));
                             log('webSocketController:UpdateConfigBackupSchedule: Backup config atualizado com sucesso!');
                           } catch (error) {
                             log('webSocketController:UpdateConfigBackupSchedule: Erro ao atualizar backup config:'+ error);
@@ -863,20 +865,21 @@ export const handleConnection = async (conn, req) => {
                             "smtpHost": obj.smtpHost,
                             "smtpPort": obj.smtpPort,
                             "smtpSecure": obj.smtpSecure,
-                          };
+                        };
                         
-                          try {
+                        try {
                             for (const [entry, value] of Object.entries(backupFields)) {
-                              // Atualizar ou criar se não existir
-                              await db.config.update({ value }, {
+                                // Atualizar ou criar se não existir
+                                await db.config.update({ value }, {
                                 where: { entry }
-                              });
+                                });
                             }
                             log('webSocketController:UpdateConfigSmtp: config atualizado com sucesso!');
-                          } catch (error) {
+                            conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSuccess", result: [5] }));
+                        } catch (error) {
                             log('webSocketController:UpdateConfigSmtp: Erro ao atualizar config:'+ error);
-                          }
-
+                        }
+                        
                         const updateConfigResult = await db.config.findAll();
                         conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: updateConfigResult }));
                     }
@@ -885,20 +888,21 @@ export const handleConnection = async (conn, req) => {
                             "openaiKey": obj.openaiKey,
                             "openaiOrg": obj.openaiOrg,
                             "openaiProj": obj.openaiProj,
-                          };
+                        };
                         
-                          try {
+                        try {
                             for (const [entry, value] of Object.entries(backupFields)) {
-                              // Atualizar ou criar se não existir
-                              await db.config.update({ value }, {
+                                // Atualizar ou criar se não existir
+                                await db.config.update({ value }, {
                                 where: { entry }
-                              });
+                                });
                             }
                             log('webSocketController:UpdateConfigOpenAI: Config atualizado com sucesso!');
-                          } catch (error) {
+                            conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSuccess", result: [3] }));
+                        } catch (error) {
                             log('webSocketController:UpdateConfigOpenAI: Erro ao atualizar config:'+ error);
-                          }
-
+                        }
+                        
                         const updateConfigResult = await db.config.findAll();
                         conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: updateConfigResult }));
                     }
@@ -908,18 +912,44 @@ export const handleConnection = async (conn, req) => {
                             "googleClientSecret": obj.googleClientSecret,
                           };
                         
-                          try {
+                        try {
                             for (const [entry, value] of Object.entries(backupFields)) {
-                              // Atualizar ou criar se não existir
-                              await db.config.update({ value }, {
+                                // Atualizar ou criar se não existir
+                                await db.config.update({ value }, {
                                 where: { entry }
-                              });
+                                });
                             }
                             log('webSocketController:UpdateConfigGoogleCalendar: Config atualizado com sucesso!');
-                          } catch (error) {
+                            conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSuccess", result: [2] }));
+                        } catch (error) {
                             log('webSocketController:UpdateConfigGoogleCalendar: Erro ao atualizar config:'+ error);
-                          }
+                        }
+                        
+                        const updateConfigResult = await db.config.findAll();
+                        conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: updateConfigResult }));
+                    }
+                    if (obj.mt == "UpdateConfigSms") {
+                        const fields = {
+                            "awsSnsKey": obj.awsSnsKey,
+                            "awsSnsSecret": obj.awsSnsSecret,
+                            "awsSnsRegion": obj.awsSnsRegion
+                          };
+                        
+                        try {
+                            for (const [entry, value] of Object.entries(fields)) {
+                                // Atualizar ou criar se não existir
+                                await db.config.update({ value }, {
+                                where: { entry }
+                                });
+                            }
+                            log('webSocketController:UpdateConfigSms: Config atualizado com sucesso!');
+                            conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSuccess", result: [2] }));
+                        } catch (error) {
+                            log('webSocketController:UpdateConfigSms: Erro ao atualizar config:'+ error);
+                        }
 
+                        await initAwsSNS();
+                        
                         const updateConfigResult = await db.config.findAll();
                         conn.send(JSON.stringify({ api: "admin", mt: "ConfigResult", result: updateConfigResult }));
                     }
@@ -1022,7 +1052,8 @@ export const handleConnection = async (conn, req) => {
                             where: {
                                 id: obj.id,
                             },
-                            });
+                        });
+                        conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSuccess", result: objToUpdateResult }));
 
                         const objToResult = await db.button.findOne({
                         where: {
@@ -1058,12 +1089,13 @@ export const handleConnection = async (conn, req) => {
                             where: {
                                 id: obj.id,
                             },
-                            });
-                            const objToResult = await db.button.findOne({
+                        });
+                        conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSuccess", result: objToUpdateResult }));
+                        const objToResult = await db.button.findOne({
                             where: {
                                 id: obj.id,
                             },
-                            });
+                        });
                         conn.send(JSON.stringify({ api: "admin", mt: "UpdateButtonSuccess", result: objToResult }));
                         send(obj.guid,{ api: "user", mt: "UpdateButtonSuccess", result: objToResult })
                     }
@@ -1110,12 +1142,13 @@ export const handleConnection = async (conn, req) => {
                             where: {
                                 id: obj.id,
                             },
-                            });
-                            const objToResult = await db.button.findOne({
+                        });
+                        conn.send(JSON.stringify({ api: "admin", mt: "UpdateConfigSuccess", result: objComboToUpdateResult }));
+                        const objToResult = await db.button.findOne({
                             where: {
                                 id: obj.id,
                             },
-                            });
+                        });
                         conn.send(JSON.stringify({ api: "admin", mt: "UpdateButtonSuccess", result: objToResult }));
                         send(obj.guid,{ api: "user", mt: "UpdateButtonSuccess", result: objToResult })
                         
@@ -1216,8 +1249,40 @@ export const handleConnection = async (conn, req) => {
                     
                     }
                     if (obj.mt == "SelectActions") {
-                        const actions = await db.action.findAll();
-                        conn.send(JSON.stringify({ api: "admin", mt: "SelectActionsMessageSuccess", result: JSON.stringify(actions, null, 4) }));
+                        try {
+                            // 1. Buscar todas as ações
+                            const actions = await db.action.findAll();
+                        
+                            // 2. Iterar pelas ações e buscar notificações relacionadas
+                            const actionsWithNotifies = await Promise.all(actions.map(async (action) => {
+                                const notifications = await db.actionNotifies.findAll({
+                                    where: { action_id: action.id },
+                                    attributes: ['id', 'email_phone', 'parameter']
+                                });
+                        
+                                return {
+                                    ...action.toJSON(), // Convertendo a ação em JSON
+                                    notifications // Inclui notificações relacionadas
+                                };
+                            }));
+                        
+                            // 3. Enviar a lista combinada para o front-end
+                            conn.send(JSON.stringify({
+                                api: "admin",
+                                mt: "SelectActionsMessageSuccess",
+                                result: JSON.stringify(actionsWithNotifies, null, 4)
+                            }));
+                        } catch (error) {
+                            console.error("Error fetching actions with notifications:", error);
+                            conn.send(JSON.stringify({
+                                api: "admin",
+                                mt: "SelectActionsMessageError",
+                                error: error.message
+                            }));
+                        }
+                        
+                        // const actions = await db.action.findAll();
+                        // conn.send(JSON.stringify({ api: "admin", mt: "SelectActionsMessageSuccess", result: JSON.stringify(actions, null, 4) }));
                     }
                     if (obj.mt == "DeleteActions") {
                         var result = await db.action.destroy({
@@ -1227,6 +1292,130 @@ export const handleConnection = async (conn, req) => {
                             });
                         //const allActions = await db.action.findAll();
                         conn.send(JSON.stringify({ api: "admin", mt: "DeleteActionsMessageSuccess", id_deleted: obj.id, result: result }));
+
+                    }
+                    if (obj.mt == "UpdateActionUserNotification") {
+                        const actionId = String(obj.id);
+                        const emails = obj.emails || [];
+                        const smsPhones = obj.smsPhones || [];
+                    
+                        try {
+                            // 1. Buscar os registros existentes no banco de dados
+                            const existingNotifications = await db.actionNotifies.findAll({
+                                where: { action_id: actionId },
+                                attributes: ['id', 'email_phone', 'parameter']
+                            });
+                    
+                            // 2. Criar listas dos novos registros recebidos
+                            const newNotifications = [
+                                ...emails.map(email => ({
+                                    action_id: actionId,
+                                    email_phone: 'email',
+                                    parameter: email
+                                })),
+                                ...smsPhones.map(phone => ({
+                                    action_id: actionId,
+                                    email_phone: 'sms',
+                                    parameter: phone
+                                }))
+                            ];
+                    
+                            // 3. Identificar registros para inclusão e exclusão
+                            const notificationsToInsert = [];
+                            const notificationsToKeep = new Set();
+                    
+                            newNotifications.forEach(newItem => {
+                                const found = existingNotifications.find(existingItem =>
+                                    existingItem.email_phone === newItem.email_phone &&
+                                    existingItem.parameter === newItem.parameter
+                                );
+                    
+                                if (!found) {
+                                    notificationsToInsert.push(newItem); // Itens novos para inserção
+                                } else {
+                                    notificationsToKeep.add(found.id); // Itens existentes que devem ser mantidos
+                                }
+                            });
+                    
+                            // Excluir registros que não estão mais na nova lista
+                            const idsToDelete = existingNotifications
+                                .filter(existingItem => !notificationsToKeep.has(existingItem.id))
+                                .map(item => item.id);
+                    
+                            if (idsToDelete.length > 0) {
+                                await db.actionNotifies.destroy({
+                                    where: { id: idsToDelete }
+                                });
+                            }
+                    
+                            // 4. Inserir os novos registros que não existiam
+                            if (notificationsToInsert.length > 0) {
+                                await db.actionNotifies.bulkCreate(notificationsToInsert);
+                            }
+                    
+                            // 5. Buscar os registros atualizados para retorno
+                            const updatedNotifications = await db.actionNotifies.findAll({
+                                where: { action_id: actionId },
+                                attributes: ['email_phone', 'parameter', 'updatedAt']
+                            });
+                    
+                            // 6. Formatar os resultados para envio
+                            const objToResult = {
+                                action_id: actionId,
+                                emails: updatedNotifications
+                                    .filter(item => item.email_phone === 'email')
+                                    .map(item => item.parameter),
+                                smsPhones: updatedNotifications
+                                    .filter(item => item.email_phone === 'sms')
+                                    .map(item => item.parameter),
+                                lastUpdate: updatedNotifications.length > 0
+                                    ? updatedNotifications[0].updatedAt
+                                    : null
+                            };
+                    
+                            // 7. Enviar os dados de sucesso de volta
+                            conn.send(JSON.stringify({
+                                api: "admin",
+                                mt: "UpdateActionUserNotificationSuccess",
+                                result: objToResult
+                            }));
+                        } catch (error) {
+                            log("Erro ao atualizar notificações:"+ error);
+                            conn.send(JSON.stringify({
+                                api: "admin",
+                                mt: "UpdateActionUserNotificationError",
+                                message: "Erro ao atualizar as notificações.",
+                                error: error.message
+                            }));
+                        }
+                    }
+                    if (obj.mt == "SelectActionUserNotification") {
+                        // Busca as notificações com base no action_id
+                        const notifications = await db.actionNotifies.findAll({
+                            where: { action_id: obj.id },
+                            attributes: ['email_phone', 'parameter', 'updatedAt']
+                        });
+
+                        // Formata os dados para retorno
+                        const objToResult = {
+                            action_id: obj.id,
+                            emails: notifications
+                                .filter(item => item.email_phone === 'email')
+                                .map(item => item.parameter),
+                            smsPhones: notifications
+                                .filter(item => item.email_phone === 'sms')
+                                .map(item => item.parameter),
+                            lastUpdate: notifications.length > 0
+                                ? notifications[0].updatedAt
+                                : null
+                        };
+
+                        // Envia os dados formatados de volta
+                        conn.send(JSON.stringify({
+                            api: "admin",
+                            mt: "SelectActionUserNotificationSuccess",
+                            result: objToResult
+                        }));
 
                     }
                     //#endregion

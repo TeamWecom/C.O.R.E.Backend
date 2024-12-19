@@ -47,7 +47,12 @@ module.exports = {
       { id: 27, entry: 'openaiKey', value: '' },
       { id: 28, entry: 'openaiOrg', value: '' },
       { id: 29, entry: 'openaiProj', value: '' },
-      { id: 30, entry: 'flicSecretApi', value: '' }
+      { id: 30, entry: 'flicSecretApi', value: '' },
+      { id: 31, entry: 'googleClientId', value: '' },
+      { id: 32, entry: 'googleClientSecret', value: '' },
+      { id: 33, entry: 'awsSnsKey', value: '' },
+      { id: 34, entry: 'awsSnsSecret', value: '' },
+      { id: 35, entry: 'awsSnsRegion', value: '' }
     ];
 
     for (const record of records) {

@@ -16,6 +16,7 @@ import { getDevices, TriggerCommand, findGatewayIdByDevEUI } from './milesightCo
 import {innovaphoneMakeCall} from './innovaphoneController.js'
 import { sendEmail } from '../managers/smtpManager.js'
 import {openAIRequestImagemAnaliser} from '../utils/openAiUtils.js';
+import {sendSms} from '../managers/awsManager.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -371,22 +372,26 @@ async function actionMakeCall(action){
  */
 async function notifyUsersAboutActionExecution(from, action){
     try{
-
         const users = await db.user.findAll();
+        const create_user = users.find(u => u.guid === action.create_user);
+        let exec_prt_translated = action.action_exec_prt
+        if(action.action_exec_type == 'button'){
+            const button = await db.button.findOne({where:{
+                id : parseInt(action.action_exec_prt)
+            }})
+            exec_prt_translated = button.button_name;
+        }
 
-        if(users.length > 0){
+        const users_to_notify = await db.actionNotifies.findAll({where:{
+            action_id : ac.id
+        }})
 
-            const create_user = users.find(u => u.guid === action.create_user);
-            let exec_prt_translated = action.action_exec_prt
-            if(action.action_exec_type == 'button'){
-                const button = await db.button.findOne({where:{
-                    id : parseInt(action.action_exec_prt)
-                }})
-                exec_prt_translated = button.button_name;
-            }
+        //Notificação via e-mail e sms
+        if(users_to_notify){
+            users_to_notify.forEach(async(n)=>{
 
-            users.forEach(async u => {
-                //Notificação no e-mail
+                if(n.email_phone =="email"){
+                    //Notificação no e-mail
                 const body = `<!DOCTYPE html>
                 <html lang="en">
                 <head>
@@ -463,7 +468,7 @@ async function notifyUsersAboutActionExecution(from, action){
                             <h1>Control Operation Responsive Enviroment</h1>
                         </div>
                         <div class="content">
-                            <p>Olá ${u.name},abaixo você tem informações sobre a ação executada:</p>
+                            <p>Olá, abaixo você tem informações sobre a ação executada:</p>
                             <p class="link" >Nome da ação: ${action.action_name}</p>
                             <br/>
                             <p>Gatilho</p>
@@ -483,49 +488,60 @@ async function notifyUsersAboutActionExecution(from, action){
                     </div>
                 </body>
                 </html>`
-
-                if(action.action_exec_user != '' && action.action_exec_user == u.guid){
-
-                    //Notificação no Histórico da console
-                    var msg = { 
-                        guid: action.action_exec_user, 
-                        from: from, 
-                        name: 'action', 
-                        date: getDateNow(), 
-                        status: "start", 
-                        prt: action.action_start_device_parameter, 
-                        details: action.id, //details.id para obter o id da ação executada e outros parâmetros
-                        min_threshold: action.action_start_prt, 
-                        max_threshold: action.action_start_prt, 
-                    }
-                    let insertActivityResult = await db.activity.create(msg)
-                    insertActivityResult.details = action
-                    send(action.action_exec_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] })
-
-                    // Send the reset email with the token
-                    await sendEmail([u.email], 'CORE - Ação executada!', body);
+                // Send the reset email with the token
+                await sendEmail([n.parameter], 'CORE - Ação executada!', body);
                 }
-                if(action.action_exec_user == ''){
-                    //Notificação no Histórico da console
-                    var msg = { 
-                        guid: u.guid, 
-                        from: from, 
-                        name: 'action', 
-                        date: getDateNow(), 
-                        status: "start", 
-                        prt: action.action_start_device_parameter,
-                        details: action.id, 
-                        min_threshold: action.action_start_prt, 
-                        max_threshold: action.action_start_prt, 
-                    }
-                    let insertActivityResult = await db.activity.create(msg)
-                    insertActivityResult.details = action
-                    send(u.guid, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] })
-
-                    // Send the reset email with the token
-                    await sendEmail([u.email], 'CORE - Ação executada!', body);
+                if(n.email_phone == "sms"){
+                    const body = `****Control Operation Responsive Enviroment***
+                    Olá, abaixo você tem informações sobre a ação executada:
+                    Nome da ação: ${action.action_name}
+                    Valor: ${action.action_start_prt}
+                    Criado por: ${create_user.name}
+                    `
+                    await sendSms(n.parameter,body)
                 }
+
             })
+        }
+
+        //Insere atividade no Histórico
+        if(action.action_exec_user != ''){
+
+            //Notificação no Histórico da console
+            var msg = { 
+                guid: action.action_exec_user, 
+                from: from, 
+                name: 'action', 
+                date: getDateNow(), 
+                status: "start", 
+                prt: action.action_start_device_parameter, 
+                details: action.id, //details.id para obter o id da ação executada e outros parâmetros
+                min_threshold: action.action_start_prt, 
+                max_threshold: action.action_start_prt, 
+            }
+            let insertActivityResult = await db.activity.create(msg)
+            insertActivityResult.details = action
+            send(action.action_exec_user, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] })
+        }else{
+            users.forEach(async u => {
+                //Notificação no Histórico da console
+                var msg = { 
+                    guid: u.guid, 
+                    from: from, 
+                    name: 'action', 
+                    date: getDateNow(), 
+                    status: "start", 
+                    prt: action.action_start_device_parameter,
+                    details: action.id, 
+                    min_threshold: action.action_start_prt, 
+                    max_threshold: action.action_start_prt, 
+                }
+                let insertActivityResult = await db.activity.create(msg)
+                insertActivityResult.details = action
+                send(u.guid, { api: "user", mt: "getHistoryResult", result: [insertActivityResult] })
+
+            })
+
         }
     }catch(e){
         log("actionController:notifyUsersAboutActionExecution: erro " + e);
@@ -590,3 +606,63 @@ async function actionAlert(from, action){
     
 
 }
+/**
+ * Função para inserir ou atualizar notificações de ações (e-mails e telefones)
+ * na tabela de notificações do banco de dados usando Sequelize.
+ * 
+ * @param {Object} data - Objeto contendo os dados da ação.
+ * @param {number|string} data.id - ID da ação associada.
+ * @param {string[]} data.emails - Lista de e-mails a serem processados.
+ * @param {string[]} data.smsPhones - Lista de números de telefone a serem processados.
+ * @param {Object} model - Modelo Sequelize que representa a tabela de notificações.
+ * 
+ * @returns {Promise<void>} - Retorna uma Promise que resolve após concluir o upsert.
+ * 
+ * @example
+ * import upsertActionNotifications from './notificationsService';
+ * import { ActionNotifies } from './models';
+ * 
+ * const inputData = {
+ *   id: 61,
+ *   emails: ["erick@wecom.com.br", "danilo.volz@wecom.com.br"],
+ *   smsPhones: ["+5551998794645", "+5551999776464"]
+ * };
+ * 
+ * upsertActionNotifications(inputData, ActionNotifies)
+ *   .then(() => console.log('Notificações processadas com sucesso!'))
+ *   .catch(err => console.error('Erro ao processar notificações:', err));
+ */
+export const upsertActionNotifications = async (data) => {
+    const { action_id, emails = [], smsPhones = [] } = data;
+  
+    // Combina os dados em um único array
+    const allNotifications = [
+      ...emails.map(email => ({
+        action_id: action_id,
+        email_phone: 'email',
+        parameter: email,
+      })),
+      ...smsPhones.map(phone => ({
+        action_id: action_id,
+        email_phone: 'sms',
+        parameter: phone,
+      }))
+    ];
+  
+    // Realiza o upsert para cada item no array
+    try {
+      for (const notify of allNotifications) {
+        await db.actionNotifies.upsert({
+          action_id: notify.action_id,
+          email_phone: notify.email_phone,
+          parameter: notify.parameter,
+        }, {
+          conflictFields: ['action_id', 'email_phone', 'parameter'], // Define os campos únicos
+        });
+      }
+      console.log('Upsert concluído com sucesso.');
+    } catch (error) {
+      console.error('Erro durante o upsert:', error);
+      throw error;
+    }
+  };

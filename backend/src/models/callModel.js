@@ -29,5 +29,10 @@ Call.init({
     tableName: 'tbl_calls', // Defina o nome da tabela aqui
     timestamps: false
   });
+  // Definir o relacionamento entre User e UserPreferences
+// Definir a associação no próprio modelo
+Call.associate = (models) => {
+  Call.hasOne(models.Transcription, { foreignKey: 'call_id' });
+};
 
 export default Call;

@@ -4,6 +4,7 @@ import db  from '../managers/databaseSequelize.js'; // Importe o sequelize confi
 class Action extends Model {
   static associate(models) {
     // Defina as associações aqui, se houver
+    this.hasMany(models.actionNotifies, { foreignKey: 'action_id', sourceKey: 'id' });
   }
 }
 

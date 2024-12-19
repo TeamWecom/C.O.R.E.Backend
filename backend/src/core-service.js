@@ -41,6 +41,7 @@ import mqttRoutes from './routes/mqttRoutes.js';
 import FlicRouter from './routes/flicRoutes.js';
 import {returnContacts} from './utils/ldapUtils.js';
 import{ initGoogleOAuth} from './managers/googleCalendarManager.js'
+import { initAwsSNS } from './managers/awsManager.js';
 
 bodyParserXml(bodyParser);
 
@@ -249,6 +250,9 @@ const isGoogleOk = await loadGoogleTokens();
 if(isGoogleOk){
     loopGetOngoingEventGuests();
 }
+
+//aws SNS
+await initAwsSNS();
 
 //teste ldap Innovaphone
 returnContacts()
