@@ -25,7 +25,7 @@ import { makeConference,
     retrieveIncomingCall,
     redirectIncomingCall,
     dtmfIncomingCall, 
-    monitorGoogleCalendarCall
+    monitorCalendarCall
 } from './buttonController.js';
 import { send, 
     broadcast, 
@@ -47,6 +47,7 @@ import { openAIRequestTestCredits, openAIRequestTranscription } from '../utils/o
 import {listCalendars, startOAuthFlow, deleteOAuthFlow, getOngoingEventGuests, loadGoogleTokens} from '../managers/googleCalendarManager.js';
 import { updateButtonNameGoogleCalendar } from '../controllers/buttonController.js';
 import { initAwsSNS } from '../managers/awsManager.js';
+import { deleteMicrosoftOAuthFlow, getMicrosoftOngoingEventGuests, listMicrosoftCalendars, loadMicrosoftTokens, startMicrosoftOAuthFlow } from '../managers/microsoftCalendarManager.js';
 export const handleConnection = async (conn, req) => {
     const today = getDateNow();
     const query = parse(req.url, true).query;
@@ -400,10 +401,34 @@ export const handleConnection = async (conn, req) => {
                             }
                             if(guests.length>1){
                                 //Start call monitor function to redirect if its not answered
-                                monitorGoogleCalendarCall(btn, guests, usersInn)
+                                monitorCalendarCall(btn, guests, usersInn)
                             }
                         }else{
-                            log("webSocketController:TriggerGoogleCalendarCall: no gusts at this moment " + JSON.stringify(userInn));
+                            log("webSocketController:TriggerGoogleCalendarCall: no guests at this moment " + JSON.stringify(userInn));
+                        }
+                        return; 
+                    }
+                    if (obj.mt == "TriggerMicrosoftCalendarCall") {
+                        const btn = await db.button.findOne({where:{id: parseInt(obj.btn_id)}})
+
+                        const guests = await getMicrosoftOngoingEventGuests(btn.calendar_id)
+                        if(guests.length>0){
+                            const sip = guests[0].email.split('@')[0];
+                            const usersInn = await pbxTableUsers()
+                            const userInn = usersInn.filter(u => u.sip == sip)[0]
+                            if(userInn){
+                                let result = await makeCall(conn.guid, obj.btn_id, btn.button_device, userInn.e164)
+                                log("webSocketController:TriggerMicrosoftCalendarCall: result : " + JSON.stringify(result));
+                                conn.send(JSON.stringify({ api: "user", mt: "TriggerCallResult", result: result }));
+                            }else{
+                                log("webSocketController:TriggerMicrosoftCalendarCall: no userInn to this guest " + JSON.stringify(userInn));
+                            }
+                            if(guests.length>1){
+                                //Start call monitor function to redirect if its not answered
+                                monitorCalendarCall(btn, guests, usersInn)
+                            }
+                        }else{
+                            log("webSocketController:TriggerMicrosoftCalendarCall: no guests at this moment " + JSON.stringify(userInn));
                         }
                         return; 
                     }
@@ -572,7 +597,7 @@ export const handleConnection = async (conn, req) => {
                         log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                     }
                     if (obj.mt == "SelectButtons") { //Chamado quando o app é aberto e retorna todos os botões do usuário
-                        await selectButtons(conn.guid, obj.api)
+                        await selectButtons(conn.guid, obj.api, obj.is_mobile)
                         break;
                     }
                     if (obj.mt == "TriggerAlarm") { //Chamado quando o usuário pressiona um Botão de alarme na tela
@@ -1017,6 +1042,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             createdAt: getDateNow(),
+                            is_mobile: Boolean(obj.is_mobile),
 
                         } 
                         const insertButtonResult = await db.button.create(objToInsert)
@@ -1046,6 +1072,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             updatedAt: getDateNow(),
+                            is_mobile: Boolean(obj.is_mobile),
 
                         } 
                         const objToUpdateResult = await db.button.update(objToUpdate,{
@@ -1083,6 +1110,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             updatedAt: getDateNow(),
+                            is_mobile: Boolean(obj.is_mobile),
 
                         } 
                         const objToUpdateResult = await db.button.update(objToUpdate,{
@@ -1115,6 +1143,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             createdAt: getDateNow(),
+                            is_mobile: Boolean(obj.is_mobile),
 
                         } 
                         const objComboToInsertResult = await db.button.create(objComboToInsert);
@@ -1136,6 +1165,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             updatedAt: getDateNow(),
+                            is_mobile: Boolean(obj.is_mobile),
 
                         } 
                         const objComboToUpdateResult = await db.button.update(objComboToUpdate,{
@@ -1154,7 +1184,7 @@ export const handleConnection = async (conn, req) => {
                         
                     }
                     if (obj.mt == "SelectButtons") {
-                        await selectButtons(conn.guid, obj.api);
+                        await selectButtons(conn.guid, obj.api, obj.is_mobile);
                         break;
                     }
                     if (obj.mt == "DeleteButtons") {
@@ -1188,8 +1218,8 @@ export const handleConnection = async (conn, req) => {
                             page : String(obj.page),
                             position_x : String(obj.x),
                             position_y: String(obj.y),
-                            createdAt: getDateNow() //new Date().toISOString().slice(0, 16),
-
+                            createdAt: getDateNow(), //new Date().toISOString().slice(0, 16),
+                            is_mobile: Boolean(obj.is_mobile),
                         } 
                         const insertSensorResult = await db.button.create(objSensorToInsert)
                         conn.send(JSON.stringify({ api: "admin", mt: "InsertButtonSuccess", result: insertSensorResult }));
@@ -1775,6 +1805,7 @@ export const handleConnection = async (conn, req) => {
                                 const audio = await returnRecordFileByRecordId(call.record_id)
                                 if(audio){
                                     var result = await openAIRequestTranscription(audio);
+                                    result.id = obj.call
                                     conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: result }))    
                                     if(result.status == "OK"){
                                         let objToInsert = {
@@ -1785,19 +1816,29 @@ export const handleConnection = async (conn, req) => {
                 
                                         }
                                         await db.callTranscription.create(objToInsert)
+                                    }else {
+
+                                        let objToInsert = {
+                                            call_id: obj.call,
+                                            text: 'noTranscription',
+                                            create_user: conn.guid,
+                                            createdAt: getDateNow()
+
+                                        }
+                                        await db.callTranscription.create(objToInsert)
                                     }
                                     return
                                 }else{
-                                    conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {status: "NOK", text: "File not found"} }))    
+                                    conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {id: obj.call, status: "NOK", text: "File not found"} }))    
                                     return
                                 }
                             }else{
                                 //já transcrevido
-                                conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {status: "OK", text: call_transcription.text} }))    
+                                conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {id: obj.call, status: "OK", text: call_transcription.text} }))    
                                 return
                             }
                         }catch(e){
-                            conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {status: "NOK", text: e} }))
+                            conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {id: obj.call, status: "NOK", text: e} }))
                             return
                         }
                     }
@@ -1959,6 +2000,40 @@ export const handleConnection = async (conn, req) => {
                     }
                     if(obj.mt =="RequestOngoingEventGuests"){
                         const guests = await getOngoingEventGuests(obj.id);
+                        log(`webSocketController:RequestOngoingEventGuests: lenght:${guests.length}`);
+                        send(conn.guid, { api: "admin", mt: "RequestOngoingEventGuestsResult", result: guests });
+                    }
+                    
+                    // #endregion
+                    // #region Microsoft OAuth
+                    if(obj.mt =="RequestMicrosoftOAuthStatus"){
+                        // Início do fluxo
+                        const status = await loadMicrosoftTokens();
+                        send(conn.guid, { api: "admin", mt: "RequestMicrosoftOAuthStatusResult", result: status });
+                        
+                    }
+                    if(obj.mt =="RequestMicrosoftOAuth"){
+                        // Início do fluxo
+                        startMicrosoftOAuthFlow(conn.guid)
+                        .then(async () => {
+                        
+                            log('webSocketController:RequestMicrosoftCalendars: Ok');
+                        })
+                        .catch((err) => log(`webSocketController:RequestMicrosoftCalendars: Erro:${err}`));
+                    }
+                    if (obj.mt === "RequestMicrosoftOAuthRemove") {
+                        deleteMicrosoftOAuthFlow(conn.guid)
+                          .then(() => log("webSocketController:RequestMicrosoftOAuthRemove: Ok"))
+                          .catch((err) => log(`webSocketController:RequestMicrosoftOAuthRemove: Erro: ${err}`));
+                      }
+                      
+                    if(obj.mt =="RequestMicrosoftCalendars"){
+                        const calendars = await listMicrosoftCalendars();
+                        log(`webSocketController:RequestMicrosoftCalendars: lenght:${calendars.length}`);
+                        send(conn.guid, { api: "admin", mt: "RequestMicrosoftCalendarsResult", result: calendars });
+                    }
+                    if(obj.mt =="RequestMicrosoftOngoingEventGuests"){
+                        const guests = await getMicrosoftOngoingEventGuests(obj.id);
                         log(`webSocketController:RequestOngoingEventGuests: lenght:${guests.length}`);
                         send(conn.guid, { api: "admin", mt: "RequestOngoingEventGuestsResult", result: guests });
                     }

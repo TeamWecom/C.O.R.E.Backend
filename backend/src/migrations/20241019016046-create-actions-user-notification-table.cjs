@@ -14,7 +14,7 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'action',  // Faz referência ao modelo User
+          model: 'list_actions',  // Faz referência ao modelo User
           key: 'id',  // A coluna guid no modelo User
         },
         onDelete: 'CASCADE',  // Remove as preferências se o usuário for deletado

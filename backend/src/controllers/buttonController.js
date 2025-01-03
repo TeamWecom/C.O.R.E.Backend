@@ -31,6 +31,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { getDevices } from './milesightController.js';
 import { listCalendars, getOngoingEventGuests } from '../managers/googleCalendarManager.js';
+import { getMicrosoftOngoingEventGuests, listMicrosoftCalendars } from '../managers/microsoftCalendarManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -252,7 +253,7 @@ export const makeCall = async (guid, btn_id, device, num) => {
                 const userInn = usersInn.filter(u => u.guid == btn.button_prt )[0]
                 btn.button_prt = userInn.e164
             }
-            if(btn.button_type == 'google_calendar'){
+            if(btn.button_type == 'google_calendar' || btn.button_type == 'microsoft_calendar'){
                 btn.button_prt = num;
             }
             
@@ -970,13 +971,14 @@ export const triggerStopAlarm = async (guid, btn) => {
     }
 
 }
-export const selectButtons = async (guid, api) => {
+export const selectButtons = async (guid, api, isMobile) => {
     let result
     if(api=="user"){
         log("buttonController::SelectButtons: " + guid)
         result = await db.button.findAll({
             where: {
-              button_user: guid // Filtra os botões pelo valor do campo button_user igual ao valor de guid
+              button_user: guid, // Filtra os botões pelo valor do campo button_user igual ao valor de guid
+              is_mobile: isMobile !== undefined ? isMobile : { [Op.or]: [true, false] }
             }
           });
         log("buttonController::SelectButtons: result= " + result.length + " buttons for user "+guid);
@@ -1001,14 +1003,14 @@ export const selectButtons = async (guid, api) => {
     //Aproveitamos para enviar a lista de status dos controllers que estejam entre os botões desse usuário
     getControllerStatusByGuid(guid, result)
 }
-export const updateButtonPrtGoogleCalendar = async (bJSON, sip) => {
+export const updateButtonPrtCalendar = async (bJSON, sip) => {
     try{
         if(sip){
             const innoUsers = await pbxTableUsers();
 
             const userInno = innoUsers.find((u) => u.sip == sip)
-            log('buttonController:updateButtonPrtGoogleCalendar: userInno '+ userInno.cn+ 'to the guest '+ sip);
             if(userInno){ 
+                log('buttonController:updateButtonPrtCalendar: userInno '+ userInno.cn+ 'to the guest '+ sip);
                 bJSON.button_prt = userInno.guid;
                 const objToUpdateResult = await db.button.update(bJSON,
                     {
@@ -1017,6 +1019,7 @@ export const updateButtonPrtGoogleCalendar = async (bJSON, sip) => {
                     },
                 });
             }else{
+                log('buttonController:updateButtonPrtCalendar: No userInno correspondent to the guest '+ sip);
                 bJSON.button_prt = "";
                 const objToUpdateResult = await db.button.update(bJSON,
                     {
@@ -1036,7 +1039,7 @@ export const updateButtonPrtGoogleCalendar = async (bJSON, sip) => {
         }
         return bJSON;
     }catch(e){
-        log('buttonController:updateButtonPrtGoogleCalendar: Erro '+ e);
+        log('buttonController:updateButtonPrtCalendar: Erro '+ e);
         return bJSON;
     }
     
@@ -1053,10 +1056,10 @@ export const updateButtonNameGoogleCalendar = async (button) => {
           if(guests.length > 0){
             log(`butonController:updateButtonNameGoogleCalendar: ${guests.length} guests for button google_calendar ${button.button_name}`);
             const sip = guests[0].email.split('@')[0];
-            button = await updateButtonPrtGoogleCalendar(button, sip);
+            button = await updateButtonPrtCalendar(button, sip);
           }else{
             log(`butonController:updateButtonNameGoogleCalendar: no guests for button google_calendar ${button.button_name}`);
-            button = await updateButtonPrtGoogleCalendar(button, null);
+            button = await updateButtonPrtCalendar(button, null);
           }
         }
       }
@@ -1069,7 +1072,35 @@ export const updateButtonNameGoogleCalendar = async (button) => {
       return button; // Retorna o botão original em caso de erro
     }
   };
-  
+
+  export const updateButtonNameMicrosoftCalendar = async (button) => {
+    try {
+      // Verifica se o botão é do tipo "google_calendar"
+      if (button.button_type === "microsoft_calendar") {
+        const calendars = await listMicrosoftCalendars(); // Lista os calendários uma vez
+        const calendar = calendars.find((c) => c.id === button.calendar_id);
+        if (calendar) {
+          button.button_name = calendar.name; // Atualiza o nome do botão
+          const guests = await getMicrosoftOngoingEventGuests(calendar.id);
+          if(guests.length > 0){
+            log(`butonController:updateButtonNameMicrosoftCalendar: ${guests.length} guests for button microsoft_calendar ${button.button_name}`);
+            const sip = guests[0].email.split('@')[0];
+            button = await updateButtonPrtCalendar(button, sip);
+          }else{
+            log(`butonController:updateButtonNameMicrosoftCalendar: no guests for button microsoft_calendar ${button.button_name}`);
+            button = await updateButtonPrtCalendar(button, null);
+          }
+        }
+      }
+      return button; // Retorna o botão atualizado
+    } catch (e) {
+      log(
+        "buttonController:updateButtonNameMicrosoftCalendar: Erro ao atualizar o botão: " +
+          e
+      );
+      return button; // Retorna o botão original em caso de erro
+    }
+  };
   
 export const getActiveAlarmHistory = async (guid) => {
     let activeAlarms = await db.activeAlarms.findAll();
@@ -1274,9 +1305,9 @@ export const makeConference = async (guid, btn_id, calls) => {
         return e
     }  
 }
-export const monitorGoogleCalendarCall = async (btn, guests, usersInn) => {
+export const monitorCalendarCall = async (btn, guests, usersInn) => {
     try {
-        log("buttonController:monitorGoogleCalendarCall: Iniciando monitoramento de chamadas...");
+        log("buttonController:monitorCalendarCall: Iniciando monitoramento de chamadas...");
         
         // Função auxiliar para calcular o tempo decorrido em segundos
         const getElapsedTime = (startTime) => {
@@ -1286,7 +1317,7 @@ export const monitorGoogleCalendarCall = async (btn, guests, usersInn) => {
 
         // Loop que verifica a cada 5 segundos
         const intervalId = setInterval(async () => {
-            log("buttonController:monitorGoogleCalendarCall: Verificando chamadas...");
+            log("buttonController:monitorCalendarCall: Verificando chamadas...");
 
             // Buscar a chamada em andamento
             const callInCourse = await db.call.findOne({
@@ -1298,18 +1329,18 @@ export const monitorGoogleCalendarCall = async (btn, guests, usersInn) => {
 
             // Verificar se existe uma chamada em andamento
             if (callInCourse) {
-                log("buttonController:monitorGoogleCalendarCall: Chamada encontrada:"+ callInCourse.id);
+                log("buttonController:monitorCalendarCall: Chamada encontrada:"+ callInCourse.id);
 
                 if (callInCourse.call_connected === null) {
                     const elapsedTime = getElapsedTime(callInCourse.call_started);
 
                     if (elapsedTime >= 30) {
                         log(
-                            `buttonController:monitorGoogleCalendarCall: Chamada não conectada após ${elapsedTime} segundos. Processando...`
+                            `buttonController:monitorCalendarCall: Chamada não conectada após ${elapsedTime} segundos. Processando...`
                         );
                         const userInn = usersInn.filter(u => u.e164 == callInCourse.number)[0]
                         if (userInn) {
-                            log(`buttonController:monitorGoogleCalendarCall: Usuário correspondente encontrado: ${userInn.sip}`);
+                            log(`buttonController:monitorCalendarCall: Usuário correspondente encontrado: ${userInn.sip}`);
 
                             // Procurar o índice correspondente no array guests
                             const guestIndex = guests.findIndex(
@@ -1317,43 +1348,43 @@ export const monitorGoogleCalendarCall = async (btn, guests, usersInn) => {
                             );
 
                             if (guestIndex !== -1) {
-                                log(`buttonController:monitorGoogleCalendarCall: Índice correspondente no array guests: ${guestIndex}`);
+                                log(`buttonController:monitorCalendarCall: Índice correspondente no array guests: ${guestIndex}`);
                                 if(guests.length-1 > guestIndex){
                                     const resultClear = await clearCall(btn.button_user, btn.id, btn.button_device, callInCourse.call_innovaphone);
-                                    log("buttonController:monitorGoogleCalendarCall: clear old call result : " + JSON.stringify(resultClear));
+                                    log("buttonController:monitorCalendarCall: clear old call result : " + JSON.stringify(resultClear));
                                     const newIndex = guestIndex+1;
                                     const newUserInn = usersInn.filter(u => u.sip == guests[newIndex].email.split('@')[0])[0]
                                     const resultMake = await makeCall(btn.button_user, btn.id, btn.button_device, newUserInn.e164);
-                                    log("buttonController:monitorGoogleCalendarCall: start new call result : " + JSON.stringify(resultMake));
+                                    log("buttonController:monitorCalendarCall: start new call result : " + JSON.stringify(resultMake));
                                 }else{
-                                    log(`buttonController:monitorGoogleCalendarCall: Estamos Ligando para o último usuário da lista de Guests do Evento. Encerrando Loop`);
+                                    log(`buttonController:monitorCalendarCall: Estamos Ligando para o último usuário da lista de Guests do Evento. Encerrando Loop`);
                                     clearInterval(intervalId); // Encerra o loop
                                 }
                             } else {
-                                log(`buttonController:monitorGoogleCalendarCall: Nenhum índice correspondente encontrado no array guests. Encerrando loop`);
+                                log(`buttonController:monitorCalendarCall: Nenhum índice correspondente encontrado no array guests. Encerrando loop`);
                                 clearInterval(intervalId); // Encerra o loop
                             }
                         } else {
-                            log(`buttonController:monitorGoogleCalendarCall: Nenhum usuário correspondente encontrado em usersInn. Encerrando loop`);
+                            log(`buttonController:monitorCalendarCall: Nenhum usuário correspondente encontrado em usersInn. Encerrando loop`);
                             clearInterval(intervalId);
                         }
 
                     } else {
                         log(
-                            `buttonController:monitorGoogleCalendarCall: Chamada não conectada. Tempo decorrido: ${elapsedTime} segundos. Aguardando...`
+                            `buttonController:monitorCalendarCall: Chamada não conectada. Tempo decorrido: ${elapsedTime} segundos. Aguardando...`
                         );
                     }
                 } else {
-                    log("buttonController:monitorGoogleCalendarCall: Chamada conectada! Encerrando loop...");
+                    log("buttonController:monitorCalendarCall: Chamada conectada! Encerrando loop...");
                     clearInterval(intervalId); // Encerra o loop
                 }
             } else {
-                log("buttonController:monitorGoogleCalendarCall: Nenhuma chamada em andamento encontrada. Encerrando loop...");
+                log("buttonController:monitorCalendarCall: Nenhuma chamada em andamento encontrada. Encerrando loop...");
                 clearInterval(intervalId); // Encerra o loop
             }
         }, 5000); // Repetir a cada 5 segundos
     } catch (e) {
-        log("buttonController:monitorGoogleCalendarCall: Erro no monitoramento de chamadas:"+ e);
+        log("buttonController:monitorCalendarCall: Erro no monitoramento de chamadas:"+ e);
     }
 };
 

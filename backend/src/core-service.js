@@ -39,9 +39,10 @@ import aedes from 'aedes';
 import net from 'net';
 import mqttRoutes from './routes/mqttRoutes.js';
 import FlicRouter from './routes/flicRoutes.js';
-import {returnContacts} from './utils/ldapUtils.js';
+//import {returnContacts} from './utils/ldapUtils.js';
 import{ initGoogleOAuth} from './managers/googleCalendarManager.js'
 import { initAwsSNS } from './managers/awsManager.js';
+import { initMicrosoftOAuth, loadMicrosoftTokens, loopGetMicrosoftOngoingEventGuests } from './managers/microsoftCalendarManager.js';
 
 bodyParserXml(bodyParser);
 
@@ -251,8 +252,15 @@ if(isGoogleOk){
     loopGetOngoingEventGuests();
 }
 
+//Microsoft Calendar
+await initMicrosoftOAuth();
+const isMicrosoftOk = await loadMicrosoftTokens();
+if(isMicrosoftOk){
+    loopGetMicrosoftOngoingEventGuests()
+}
+
 //aws SNS
 await initAwsSNS();
 
 //teste ldap Innovaphone
-returnContacts()
+//returnContacts()

@@ -33,7 +33,8 @@ Button.init({
       img : DataTypes.STRING,
       muted: DataTypes.BOOLEAN,
       createdAt : DataTypes.DATE,
-      updatedAt : DataTypes.DATE
+      updatedAt : DataTypes.DATE,
+      is_mobile: DataTypes.BOOLEAN
     }, {
       sequelize: db.sequelize,
       modelName: 'button',

@@ -52,7 +52,10 @@ module.exports = {
       { id: 32, entry: 'googleClientSecret', value: '' },
       { id: 33, entry: 'awsSnsKey', value: '' },
       { id: 34, entry: 'awsSnsSecret', value: '' },
-      { id: 35, entry: 'awsSnsRegion', value: '' }
+      { id: 35, entry: 'awsSnsRegion', value: '' },
+      { id: 36, entry: 'microsoftTenantId', value: '' },
+      { id: 37, entry: 'microsoftClientSecret', value: '' },
+      { id: 38, entry: 'microsoftClientId', value: '' }
     ];
 
     for (const record of records) {

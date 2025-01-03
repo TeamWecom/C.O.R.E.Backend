@@ -21,11 +21,8 @@ module.exports = {
       },
       createdAt: Sequelize.DATE,
       updatedAt: Sequelize.DATE,
-      page1 : Sequelize.STRING,
-      page2 : Sequelize.STRING,
-      page3 : Sequelize.STRING,
-      page4 : Sequelize.STRING,
-      page5 : Sequelize.STRING
+      pageNumber : Sequelize.INTEGER,
+      pageName : Sequelize.STRING
     });
 
     // Inserir os dados na tabela 'user_preferences'

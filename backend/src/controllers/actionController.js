@@ -383,7 +383,7 @@ async function notifyUsersAboutActionExecution(from, action){
         }
 
         const users_to_notify = await db.actionNotifies.findAll({where:{
-            action_id : ac.id
+            action_id : action.id
         }})
 
         //Notificação via e-mail e sms
@@ -492,9 +492,10 @@ async function notifyUsersAboutActionExecution(from, action){
                 await sendEmail([n.parameter], 'CORE - Ação executada!', body);
                 }
                 if(n.email_phone == "sms"){
-                    const body = `****Control Operation Responsive Enviroment***
+                    const body = `Control Operation Responsive Enviroment
                     Olá, abaixo você tem informações sobre a ação executada:
                     Nome da ação: ${action.action_name}
+                    Parametro: ${action.action_start_device_parameter}
                     Valor: ${action.action_start_prt}
                     Criado por: ${create_user.name}
                     `
