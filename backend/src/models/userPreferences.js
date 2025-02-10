@@ -34,6 +34,10 @@ Preference.init(
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    isMobile: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+    },
   },
   {
     sequelize: db.sequelize,

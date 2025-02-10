@@ -122,6 +122,7 @@ export const loadMicrosoftTokens = async () => {
   try {
     const tokenData = await fs.readFile(TOKEN_PATH, 'utf8');
     const tokens = JSON.parse(tokenData);
+    //log('microsoftCalendarManager:loadMicrosoftTokens: Tokens '+JSON.stringify(tokens));
 
     if (tokens.expires_in && Date.now() >= tokens.expires_in) {
       log('microsoftCalendarManager:loadMicrosoftTokens: Token expirado. Tentando renovar...');

@@ -389,5 +389,38 @@
             }
         });
     </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            // Função para obter parâmetros da URL
+            function getUrlParameter(name) {
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get(name);
+            }
+        
+            // Verificar se o parâmetro 'sip' existe na URL
+            const sipParam = getUrlParameter('sip');
+        
+            if (sipParam) {
+                console.log("Parâmetro SIP encontrado:", sipParam);
+        
+                // Aguarde a inicialização dos widgets do innovaphone
+                const checkInnovaphoneReady = setInterval(() => {
+                    if (typeof innovaphone !== "undefined" && typeof innovaphone.widgets.makeCall === "function") {
+                        clearInterval(checkInnovaphoneReady); // Parar o loop quando estiver pronto
+                        
+                        // Buscar o usuário correspondente na lista de contatos
+                        
+        
+                        if (sipParam) {
+                            innovaphone.widgets.makeCall("User CORE", sipParam);
+                            console.log("Ligando automaticamente para:", sipParam);
+                        } else {
+                            console.warn("SIP não encontrado na lista de contatos.");
+                        }
+                    }
+                }, 500); // Verifica a cada 500ms
+            }
+        });
+        </script>
 </body>
 </html>

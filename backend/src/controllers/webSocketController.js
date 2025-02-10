@@ -75,6 +75,8 @@ export const handleConnection = async (conn, req) => {
             conn.dn = user.name;
             conn.sip = user.sip;
             conn.type = user.type;
+            conn.token = query.token;
+            conn.isMobile = query.isMobile
 
             if (getConnections().length > 0) {
                 const foundConn = getConnections().filter(c => c === conn);
@@ -261,10 +263,12 @@ export const handleConnection = async (conn, req) => {
                         const preference = await db.preference.findAll({
                             attributes:[
                                 'pageName',
-                                'pageNumber'
+                                'pageNumber',
+                                'isMobile'
                             ],
                             where: {
-                                guid: conn.guid
+                                guid: conn.guid,
+                                isMobile: conn.isMobile || false
                             },
                             order: [['pageNumber', 'asc']]
                         })
@@ -342,10 +346,12 @@ export const handleConnection = async (conn, req) => {
                         const data = await db.preference.findAll({
                             attributes:[
                                 'pageName',
-                                'pageNumber'
+                                'pageNumber',
+                                'isMobile'
                             ],
                             where: {
-                                guid: conn.guid
+                                guid: conn.guid,
+                                isMobile: conn.isMobile || false
                             },
                             order: [['pageNumber', 'asc']]
                         })
@@ -596,8 +602,8 @@ export const handleConnection = async (conn, req) => {
                         conn.send(JSON.stringify(result));
                         log("webSocketController:: will insert it on DB : " + JSON.stringify(msg));
                     }
-                    if (obj.mt == "SelectButtons") { //Chamado quando o app é aberto e retorna todos os botões do usuário
-                        await selectButtons(conn.guid, obj.api, obj.is_mobile)
+                    if (obj.mt == "SelectButtons") { //Chamado quando o app é aberto e retorna todos os botões do usuário     
+                        await selectButtons(conn.guid, obj.api, conn.isMobile)
                         break;
                     }
                     if (obj.mt == "TriggerAlarm") { //Chamado quando o usuário pressiona um Botão de alarme na tela
@@ -775,7 +781,8 @@ export const handleConnection = async (conn, req) => {
                         const data = await db.preference.findAll({
                             attributes:[
                                 'pageName',
-                                'pageNumber'
+                                'pageNumber',
+                                'isMobile',
                             ],
                             where: {
                                 guid: obj.guid
@@ -789,15 +796,16 @@ export const handleConnection = async (conn, req) => {
                             { 
                                 pageNumber: parseInt(obj.pageNumber),
                                 pageName: String(obj.pageName),
-                                guid: obj.guid
-
+                                guid: obj.guid,
+                                isMobile: obj.isMobile || false
                             }
                         );
 
                         const result = await db.preference.findAll({
                             attributes:[
                                 'pageName',
-                                'pageNumber'
+                                'pageNumber',
+                                'isMobile'
                             ],
                             where: {
                                 guid: obj.guid
@@ -1042,7 +1050,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             createdAt: getDateNow(),
-                            is_mobile: Boolean(obj.is_mobile),
+                            is_mobile: Boolean(obj.isMobile),
 
                         } 
                         const insertButtonResult = await db.button.create(objToInsert)
@@ -1072,7 +1080,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             updatedAt: getDateNow(),
-                            is_mobile: Boolean(obj.is_mobile),
+                            is_mobile: Boolean(obj.isMobile),
 
                         } 
                         const objToUpdateResult = await db.button.update(objToUpdate,{
@@ -1110,7 +1118,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             updatedAt: getDateNow(),
-                            is_mobile: Boolean(obj.is_mobile),
+                            is_mobile: Boolean(obj.isMobile),
 
                         } 
                         const objToUpdateResult = await db.button.update(objToUpdate,{
@@ -1143,7 +1151,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             createdAt: getDateNow(),
-                            is_mobile: Boolean(obj.is_mobile),
+                            is_mobile: Boolean(obj.isMobile),
 
                         } 
                         const objComboToInsertResult = await db.button.create(objComboToInsert);
@@ -1165,7 +1173,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             updatedAt: getDateNow(),
-                            is_mobile: Boolean(obj.is_mobile),
+                            is_mobile: Boolean(obj.isMobile),
 
                         } 
                         const objComboToUpdateResult = await db.button.update(objComboToUpdate,{
@@ -1184,7 +1192,7 @@ export const handleConnection = async (conn, req) => {
                         
                     }
                     if (obj.mt == "SelectButtons") {
-                        await selectButtons(conn.guid, obj.api, obj.is_mobile);
+                        await selectButtons(conn.guid, obj.api);
                         break;
                     }
                     if (obj.mt == "DeleteButtons") {
@@ -1219,7 +1227,7 @@ export const handleConnection = async (conn, req) => {
                             position_x : String(obj.x),
                             position_y: String(obj.y),
                             createdAt: getDateNow(), //new Date().toISOString().slice(0, 16),
-                            is_mobile: Boolean(obj.is_mobile),
+                            is_mobile: Boolean(obj.isMobile),
                         } 
                         const insertSensorResult = await db.button.create(objSensorToInsert)
                         conn.send(JSON.stringify({ api: "admin", mt: "InsertButtonSuccess", result: insertSensorResult }));
