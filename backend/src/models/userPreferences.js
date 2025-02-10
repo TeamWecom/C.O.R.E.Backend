@@ -46,7 +46,7 @@ Preference.init(
     indexes: [
       {
         unique: true,
-        fields: ['guid', 'pageNumber'], // Define a combinação como única
+        fields: ['guid', 'pageNumber', 'isMobile'], // Define a combinação como única
       },
     ],
   }

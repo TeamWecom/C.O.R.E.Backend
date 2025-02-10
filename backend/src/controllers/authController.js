@@ -56,22 +56,18 @@ export const createUser = async (token, userData) => {
         log('authController:createUser: Erro ao inserir os dados de usuário:'+ error);
         throw new Error(error);
     }
-    // Dados a serem inseridos de preferencias
-    const preferences = [
-        { guid: newGuid, pageNumber: 1 },
-        { guid: newGuid, pageNumber: 2 },
-        { guid: newGuid, pageNumber: 3 },
-        { guid: newGuid, pageNumber: 4 },
-        { guid: newGuid, pageNumber: 5 },
-    ];
+    // // Dados a serem inseridos de preferencias
+    // const preferences = [
+    //     { guid: newGuid, pageNumber: 1, pageName: "Home", isMobile: false }
+    // ];
 
-    try {
-        // Insere os dados na tabela usando bulkCreate
-        await db.preferences.bulkCreate(preferences);
-    } catch (error) {
-        log('authController:createUser: Erro ao inserir os dados de preferencias:'+ error);
-        throw new Error(error);
-    }
+    // try {
+    //     // Insere os dados na tabela usando bulkCreate
+    //     await db.preferences.bulkCreate(preferences);
+    // } catch (error) {
+    //     log('authController:createUser: Erro ao inserir os dados de preferencias:'+ error);
+    //     throw new Error(error);
+    // }
 
     log("authController:createUser: Usuário criado: " + email);
     const decodedText = Buffer.from(password, 'base64').toString('utf-8');
