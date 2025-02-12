@@ -790,6 +790,7 @@ export const handleConnection = async (conn, req) => {
                             order: [['pageNumber', 'asc']]
                         })
                         conn.send(JSON.stringify({ api: "admin", mt: "SelectUserPreferencesResult", result: data, guid: obj.guid }))
+                        send(obj.guid,{ api: "user", mt: "SelectUserPreferencesResult", result: data, guid: obj.guid })
                     }
                     if (obj.mt == "SetPageName") {
                         const [record, created] = await db.preference.upsert(
@@ -813,6 +814,7 @@ export const handleConnection = async (conn, req) => {
                             order: [['pageNumber', 'asc']]
                         })
                         conn.send(JSON.stringify({ api: "admin", mt: "SelectUserPreferencesResult", result: result, guid: obj.guid }))
+                        send(obj.guid,{ api: "user", mt: "SelectUserPreferencesResult", result: result, guid: obj.guid })
                     }
 
                     //#endregion
