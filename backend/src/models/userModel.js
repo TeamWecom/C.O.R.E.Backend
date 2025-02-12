@@ -36,7 +36,20 @@ User.associate = (models) => {
 // Hook para criar automaticamente o user_preferences ao criar um novo user
 User.afterCreate(async (user, options) => {
   const { preference } = db.sequelize.models;
-  await preference.create({ guid: user.guid });
+  await preference.bulkCreate([
+    {
+      guid: user.guid,
+      pageNumber: 1,
+      pageName: "Home",
+      isMobile: false
+    },
+    {
+      guid: user.guid,
+      pageNumber: 1,
+      pageName: "Mobile",
+      isMobile: true
+    }
+  ]);
 });
 
 export default User;
