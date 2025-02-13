@@ -21,7 +21,8 @@ module.exports = {
       password: Sequelize.STRING,
       createdAt: Sequelize.DATE,
       updatedAt: Sequelize.DATE,
-      type : Sequelize.STRING
+      type : Sequelize.STRING,
+      mobileToken: Sequelize.STRING
     });
 
     // Inserir os dados na tabela 'users'

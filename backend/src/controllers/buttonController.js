@@ -32,6 +32,7 @@ import { dirname } from 'path';
 import { getDevices } from './milesightController.js';
 import { listCalendars, getOngoingEventGuests } from '../managers/googleCalendarManager.js';
 import { getMicrosoftOngoingEventGuests, listMicrosoftCalendars } from '../managers/microsoftCalendarManager.js';
+import { sendPushNotification } from '../utils/mobileNotification.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -822,6 +823,8 @@ export const triggerAlarm = async (guid, btn) => {
             log('buttonController:triggerAlarm: processing btn id '+ JSON.stringify(b))
 
             const sendResult = await send(b.button_user, { api: "user", mt: "AlarmReceived", btn_id: b.id})
+            const mobileResult = sendPushNotification(b.button_user, 'C.O.R.E.App', b.button_name, b.button_prt)
+            log('buttonController:triggerAlarm: processing mobileResult '+ JSON.stringify(mobileResult))
             if(sendResult){triggerAlarmResult +=1}
 
             //intert into DB the event
@@ -873,6 +876,7 @@ export const triggerAlarm = async (guid, btn) => {
         log('buttonController:triggerAlarm: activeAlarm create result id ' + result.id)
         
         return triggerAlarmResult
+        
     }catch(e){
         log('buttonController:triggerAlarm: error '+ e)
         return false

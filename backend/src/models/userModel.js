@@ -23,7 +23,8 @@ User.init({
     password: DataTypes.STRING,
     createdAt: DataTypes.DATE,
     updatedAt: DataTypes.DATE,
-    type : DataTypes.STRING
+    type : DataTypes.STRING,
+    mobileToken: DataTypes.STRING
   }, {
     sequelize:db.sequelize,
     modelName: 'user',

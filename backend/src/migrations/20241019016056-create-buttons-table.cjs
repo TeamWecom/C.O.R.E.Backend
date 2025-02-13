@@ -48,7 +48,8 @@ module.exports = {
       muted: Sequelize.BOOLEAN,
       createdAt: Sequelize.DATE,
       updatedAt: Sequelize.DATE,
-      is_mobile: Sequelize.BOOLEAN
+      is_mobile: Sequelize.BOOLEAN,
+      favorite: Sequelize.INTEGER
     });
   },
 

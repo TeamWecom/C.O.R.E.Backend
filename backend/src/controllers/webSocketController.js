@@ -340,6 +340,23 @@ export const handleConnection = async (conn, req) => {
                     
                         conn.send(JSON.stringify({ api: "user", mt: "getHistoryResult", src: obj.src, result: processedHistory }));
                     }
+                    if (obj.mt == "SetMobileToken") {
+                        log('webSocketController:handleConnction:SetMobileToken '+obj.mobileToken)
+                        const objToUpdate ={
+                            mobileToken: String(obj.mobileToken)
+
+                        }
+                        const updateUserResult = await db.user.update(objToUpdate,
+                            {
+                                where: {
+                                guid: conn.guid,
+                                },
+                            });
+
+                        conn.send(JSON.stringify({ api: "admin", mt: "SetMobileTokenSuccess", result: updateUserResult }));
+                        
+
+                    }
                     //#endregion
                     //#region PÁGINAS
                     if(obj.mt == "SelectUserPreferences"){
@@ -359,6 +376,46 @@ export const handleConnection = async (conn, req) => {
                     }
                     //#endregion
                     //#region BOTÕES
+                    if (obj.mt == "SetFavorite") {
+                        const objToUpdate = {
+                            favorite: parseInt(obj.position)
+
+                        } 
+                        
+                        const objToUpdateResult = await db.button.update(objToUpdate,{
+                            where: {
+                                id: parseInt(obj.id),
+                            },
+                            });
+                            
+                            const objToResult = await db.button.findOne({
+                            where: {
+                                id: parseInt(obj.id),
+                            },
+                            });
+                            
+                        conn.send(JSON.stringify({ api: "user", mt: "UpdateButtonSuccess", result: objToResult }))
+                    }
+                    if (obj.mt == "DelFavorite") {
+                        const objToUpdate = {
+                            favorite: null
+
+                        } 
+                        
+                        const objToUpdateResult = await db.button.update(objToUpdate,{
+                            where: {
+                                id: parseInt(obj.id),
+                            },
+                            });
+                            
+                            const objToResult = await db.button.findOne({
+                            where: {
+                                id: parseInt(obj.id),
+                            },
+                            });
+                            
+                        conn.send(JSON.stringify({ api: "user", mt: "UpdateButtonSuccess", result: objToResult }))
+                    }
                     if (obj.mt == "UpdateButton") {
                         const objToUpdate = {
                             muted: Boolean(obj.muted)

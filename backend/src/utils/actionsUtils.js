@@ -28,7 +28,7 @@ export const getDetailsForActivity = async (activity) => {
             }
         });
         if(activityDetails){
-            log(`actionsUtils:getDetailsForActivity: activity id ${activity.id} - ${activity.name} Details ${activity.details}`) 
+            //log(`actionsUtils:getDetailsForActivity: activity id ${activity.id} - ${activity.name} Details ${activity.details}`) 
             let detail =  activityDetails.toJSON();
             if(detail && activity.name == 'call'){
                 const result = await returnRecordLink([detail])

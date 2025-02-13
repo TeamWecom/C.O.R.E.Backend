@@ -34,7 +34,8 @@ Button.init({
       muted: DataTypes.BOOLEAN,
       createdAt : DataTypes.DATE,
       updatedAt : DataTypes.DATE,
-      is_mobile: DataTypes.BOOLEAN
+      is_mobile: DataTypes.BOOLEAN,
+      favorite: DataTypes.INTEGER
     }, {
       sequelize: db.sequelize,
       modelName: 'button',
