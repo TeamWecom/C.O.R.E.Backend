@@ -18,6 +18,7 @@ class Message extends Model {
     msg: DataTypes.STRING,
     delivered: DataTypes.STRING,
     read: DataTypes.STRING,
+    type: DataTypes.STRING,
   }, {
     sequelize:db.sequelize,
     modelName: 'message',

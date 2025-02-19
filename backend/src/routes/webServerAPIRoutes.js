@@ -49,18 +49,25 @@ const upload = multer({ limits: { fileSize: 100 * 1024 * 1024 }, storage: storag
 // Rota para upload de arquivos
 router.post('/uploadFiles', upload.single('file'), async (req, res) => {
     try {
+        console.log('webServerAPIRoutes:/uploadFiles: Iniciando Upload de Arquivo');
+        console.log('webServerAPIRoutes:/uploadFiles: req.headers: '+JSON.stringify(req.headers));
+        console.log('webServerAPIRoutes:/uploadFiles: req.body: '+JSON.stringify(req.body));
         const xAuthHeader = req.headers['x-auth'];
         const uploadedFile = req.file;
+
+
         const result = await uploadFile(uploadedFile, xAuthHeader, req.protocol, req.get('host'));
-        log('webServerAPIRoutes:/uploadFiles: File Uploaded! '+uploadedFile.filename);
-        res.status(200).json({ fileUrl: result.fileUrl, fileName: uploadedFile.filename, });
+        log('webServerAPIRoutes:/uploadFiles: File Uploaded! '+result.filename);
+
+
+        res.status(200).json({ fileUrl: result.fileUrl, fileName: result.filename });
     } catch (error) {
         if (error.message === 'No file uploaded') {
             res.status(400).json({ error: error.message });
         } else if (error.message === 'Token JWT inválido') {
             res.status(401).json({ error: error.message });
         } else {
-            res.status(500).json({ error: 'Internal Server Error' });
+            res.status(500).json({ error: 'Internal Server Error', message: error});
         }
     }
 });

@@ -48,6 +48,7 @@ import {listCalendars, startOAuthFlow, deleteOAuthFlow, getOngoingEventGuests, l
 import { updateButtonNameGoogleCalendar } from '../controllers/buttonController.js';
 import { initAwsSNS } from '../managers/awsManager.js';
 import { deleteMicrosoftOAuthFlow, getMicrosoftOngoingEventGuests, listMicrosoftCalendars, loadMicrosoftTokens, startMicrosoftOAuthFlow } from '../managers/microsoftCalendarManager.js';
+import { sendPushNotification } from '../utils/mobileNotification.js';
 export const handleConnection = async (conn, req) => {
     const today = getDateNow();
     const query = parse(req.url, true).query;
@@ -110,18 +111,22 @@ export const handleConnection = async (conn, req) => {
                 case "user":
                     //#region MESSAGENS
                     if (obj.mt == "Message") {
-                        log("webSocketController::Message msg:" + obj.msg +" ::::::from =>"+conn.guid+ " ::::::to =>"+obj.to);
-
-                        
+                        log("webSocketController::Message msg:" + obj.msg +" ::::::from =>"+conn.guid+ " ::::::to =>"+obj.to);  
                         const resultInsertMessage = await db.message.create({
                             chat_id: 'core',
                             from_guid: conn.guid,
                             to_guid: obj.to,
                             date: String(getDateNow()),
-                            msg:obj.msg
+                            msg:obj.msg,
+                            type: obj.type || 'text',
                         })
                         if(resultInsertMessage){
                             const resultSend = await send(obj.to, { api: "user", mt: "Message", src: conn.guid, msg: obj.msg, id: resultInsertMessage.id, result: [resultInsertMessage] })
+                            if(!resultSend){
+                                log(`webSocketController:handleConnection:Message not delivered try to notify Push ${obj.to}`)
+                                sendPushNotification(obj.to, 'C.O.R.E.App', obj.mt, obj.msg)
+                            }
+                            
                             conn.send(JSON.stringify({api: "user", mt: "MessageResult", delivered: resultSend, msg_id: resultInsertMessage.id, result: [resultInsertMessage]}))
                             //intert into DB the event
                             var msg = { 
@@ -160,6 +165,7 @@ export const handleConnection = async (conn, req) => {
                         if(data.length>0){
                             log("ChatDelivered: Mensagem[0].from_guid " + JSON.stringify(data[0].from_guid))
                             send(data[0].from_guid, { api: "user", mt:"ChatDelivered", id: obj.msg_id, result: data})    
+                            send(data[0].to_guid, { api: "user", mt:"ChatDelivered", id: obj.msg_id, result: data})    
                         }
                     }
                     if (obj.mt == "ChatRead") {
@@ -170,8 +176,6 @@ export const handleConnection = async (conn, req) => {
                                 id: obj.msg_id
                             }
                         })
-                        conn.send(JSON.stringify({ api: "user", mt: "UpdateChatSuccess" }));
-
                         const data = await db.message.findAll({
                             where: {
                                 id: obj.msg_id
@@ -181,6 +185,7 @@ export const handleConnection = async (conn, req) => {
                         log("ChatRead: Mensagem " + JSON.stringify(data))
                         if(data.length>0){
                             log("ChatRead: Mensagem[0].from_guid " + JSON.stringify(data[0].from_guid))
+                            send(data[0].to_guid, { api: "user", mt: "ChatRead", id: obj.msg_id, result: data })
                             send(data[0].from_guid, { api: "user", mt: "ChatRead", id: obj.msg_id, result: data })    
                         }
 

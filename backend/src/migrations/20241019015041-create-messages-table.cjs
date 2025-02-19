@@ -17,6 +17,7 @@ module.exports = {
       msg: Sequelize.STRING,
       delivered: Sequelize.STRING,
       read: Sequelize.STRING,
+      type: Sequelize.STRING,
     });
   },
 
