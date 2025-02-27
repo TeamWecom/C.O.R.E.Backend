@@ -209,7 +209,7 @@ export const signInUser = async ({ email, password }) => {
         guid: user.guid,
         name: user.name,
         email: user.email,
-        createdat: user.createdat,
+        createdAt: user.createdAt,
         type: user.type,
         accessToken: token,
         session: session
