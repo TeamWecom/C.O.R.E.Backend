@@ -147,6 +147,8 @@ export const loadMicrosoftTokens = async () => {
         }
       },
     });
+    //Teste para ver se renova o tokencahcedTokens = tokens;
+    cachedTokens = tokens;
     log('microsoftCalendarManager:loadMicrosoftTokens: Tokens carregados com sucesso.');
     // Inicia o monitoramento do token
     monitorTokenValidity();
@@ -255,6 +257,7 @@ export async function loopGetMicrosoftOngoingEventGuests() {
 const monitorTokenValidity = async () => {
     try {
         cachedTokens = await getFreshTokens();
+        log('microsoftCalendarManager:monitorTokenValidity: cachedTokens expires_in '+JSON.stringify(cachedTokens.expires_in));
         if (cachedTokens.expires_in && Date.now() >= cachedTokens.expires_in - 60000) { 
             log('microsoftCalendarManager:monitorTokenValidity: Token próximo de expirar. Tentando renovar...');
             cachedTokens = await getFreshTokens();
