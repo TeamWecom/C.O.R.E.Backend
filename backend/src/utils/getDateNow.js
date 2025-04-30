@@ -1,6 +1,10 @@
-export function getDateNow() {
+export function getDateNow(timestamp) {
     // Cria uma nova data com a data e hora atuais em UTC
     var date = new Date();
+    if (timestamp) {
+        date = new Date(timestamp *1000); // Converte o timestamp para milissegundos
+    }
+    
     // Adiciona o deslocamento de GMT-3 às horas da data atual em UTC
     //date.setUTCHours(date.getUTCHours()-3);
 

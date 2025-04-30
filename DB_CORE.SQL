@@ -558,6 +558,24 @@ CREATE TABLE public.user_preferences (
 	CONSTRAINT user_preferences_pkey PRIMARY KEY (id)
 );
 
+CREATE TABLE public.tbl_calls_parts (
+    id SERIAL PRIMARY KEY,
+    record_id TEXT NOT NULL,
+    ssrc TEXT,
+    srcIP TEXT,
+    srcPort TEXT,
+    destIP TEXT,
+    destPort TEXT,
+    startTime TEXT,
+    endTime TEXT,
+    lostPkts TEXT,
+    payload TEXT,
+    pktsCount TEXT,
+    maxJitter TEXT,
+    createdAt TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updatedAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Conceder permissões na tabela 'configs' ao usuário 'core_user'
 GRANT ALL PRIVILEGES ON TABLE public.configs TO core_user;
 -- Conceder permissões na tabela 'iot_cameras' ao usuário 'core_user'
@@ -588,4 +606,7 @@ GRANT ALL PRIVILEGES ON TABLE public.tbl_messages TO core_user;
 GRANT ALL PRIVILEGES ON TABLE public.users TO core_user;
 -- Conceder permissões na tabela 'user_preferences' ao usuário 'core_user'
 GRANT ALL PRIVILEGES ON TABLE public.user_preferences TO core_user;
+
+GRANT ALL PRIVILEGES ON TABLE public.tbl_calls_parts TO core_user;
+GRANT USAGE, SELECT ON SEQUENCE tbl_calls_parts_id_seq TO core_user;
 

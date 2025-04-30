@@ -21,7 +21,7 @@ Call.init({
     direction: DataTypes.STRING,
     record_id: DataTypes.STRING,
     btn_id: DataTypes.STRING,
-    call_innovaphone: DataTypes.INTEGER,
+    call_innovaphone: DataTypes.STRING,
     device: DataTypes.STRING,
   }, {
     sequelize:db.sequelize,
@@ -34,5 +34,9 @@ Call.init({
 Call.associate = (models) => {
   Call.hasOne(models.Transcription, { foreignKey: 'call_id' });
 };
+Call.associate = (models) => {
+  Call.hasMany(models.CallParts, { foreignKey: 'record_id', sourceKey: 'record_id' });
+};
+
 
 export default Call;

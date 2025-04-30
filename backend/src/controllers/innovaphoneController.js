@@ -12,6 +12,10 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
 import { triggerActionByStartType } from './actionController.js';
+import { extractRtpSsrcInfo, extractSipToPortMap, deleteFile, extractFirstMediaFormat } from './filesController.js';
+import { get } from 'http';
+import { DOMParser } from '@xmldom/xmldom';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1222,7 +1226,7 @@ export const pbxStatus = async () => {
     }
 }
 //Função chamada para conversão de gravações
-export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, filenameBase) => {
+export const oldConvertRecordingPcapToWav = async (pcapFilePath, outputDirectory, filenameBase) => {
     try {
         const rawFilePath = path.join(outputDirectory, filenameBase + '.raw');
         const wavFilePath = path.join(outputDirectory, filenameBase + '.wav');
@@ -1291,21 +1295,21 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
                     log(`innovaphoneController:convertRecordingPcapToWav: sox conversion complete: ${wavFilePath}`);
 
                     // Remover arquivos .pcap e .raw após o sucesso
-                    fs.unlink(rawFilePath, (err) => {
-                        if (err) {
-                            log(`innovaphoneController:convertRecordingPcapToWav: Error deleting raw file: ${err}`);
-                        } else {
-                            log(`innovaphoneController:convertRecordingPcapToWav: Deleted raw file: ${rawFilePath}`);
-                        }
-                    });
+                    // fs.unlink(rawFilePath, (err) => {
+                    //     if (err) {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Error deleting raw file: ${err}`);
+                    //     } else {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Deleted raw file: ${rawFilePath}`);
+                    //     }
+                    // });
 
-                    fs.unlink(pcapFilePath, (err) => {
-                        if (err) {
-                            log(`innovaphoneController:convertRecordingPcapToWav: Error deleting pcap file: ${err}`);
-                        } else {
-                            log(`innovaphoneController:convertRecordingPcapToWav: Deleted pcap file: ${pcapFilePath}`);
-                        }
-                    });
+                    // fs.unlink(pcapFilePath, (err) => {
+                    //     if (err) {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Error deleting pcap file: ${err}`);
+                    //     } else {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Deleted pcap file: ${pcapFilePath}`);
+                    //     }
+                    // });
 
                     //atualizar o hotorico do usuário com o record_link
                     const call = await updateUserHistoryByRecordFilename(filenameBase)
@@ -1316,6 +1320,129 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
         });
     } catch (e) {
         return e;
+    }
+};
+
+const codecParameters = {
+    g711U: '-t raw -r 8000 -e u-law -b 8 -c 1',
+    g711A: '-t raw -r 8000 -e a-law -b 8 -c 1',
+    g722:  '-t raw -r 16000 -e signed -b 16 -c 1',
+    g729:  '-t raw -r 8000 -e signed -b 8 -c 1'
+};
+
+// Helpers
+function execPromise(cmd) {
+    return new Promise((resolve, reject) => {
+        exec(cmd, (err, stdout, stderr) => {
+            if (err) {
+                log(`innovaphoneController:execPromise: Erro ao executar comando: ${cmd}`);
+                log(stderr);
+                return reject(err);
+            }
+            resolve(stdout);
+        });
+    });
+}
+export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, filenameBase) => {
+    try {
+        // 0 . Pegar apenas o confid do arquivo pcap
+        const confId = filenameBase.split('-')[0];
+        // 1. Extrair SIP
+        const sipOutput = await execPromise(`tshark -r "${pcapFilePath}" -Y "sip && sdp" -T fields -e sip.Call-ID -e sip.From -e sip.To -e sdp.media`);
+        const sipMap = extractSipToPortMap(sipOutput);
+
+        // 2. Extrair RTP
+        const rtpOutput = await execPromise(`tshark -r "${pcapFilePath}" -q -z rtp,streams`);
+        const rtpList = extractRtpSsrcInfo(rtpOutput);
+        log(`innovaphoneController:convertRecordingPcapToWav: RTP List: ${JSON.stringify(rtpList)} for confId ${confId}`);
+        const resultWavs = [];
+        let wavFileName = filenameBase+'.wav';
+
+        for (const {  ssrc,
+            payload,
+            srcIP,
+            srcPort,
+            destIP,
+            destPort,
+            startTime,
+            endTime,
+            lostPkts,
+            maxJitter,
+            pktCount } of rtpList) {
+            wavFileName = `${filenameBase}-${ssrc}.wav`;
+            const rawPath = path.join(outputDirectory, `${filenameBase}-${ssrc}.raw`);
+            const wavPath = path.join(outputDirectory, wavFileName);
+
+            if (payload.toLowerCase() === 'opus') {
+                await newConvertOpusPcapToOpus(pcapFilePath, outputDirectory, filenameBase, wavPath, ssrc);
+                resultWavs.push(wavPath);
+            }else{
+                const codec = codecParameters[payload] || codecParameters['g711U'];
+                const extractCommand = `tshark -r "${pcapFilePath}" -Y "rtp && rtp.ssrc==${ssrc}" -T fields -e rtp.payload | xxd -r -p > "${rawPath}"`;
+                await execPromise(extractCommand);
+    
+                const soxCommand = `sox ${codec} "${rawPath}" "${wavPath}"`;
+                await execPromise(soxCommand);
+    
+                log(`innovaphoneController:convertRecordingPcapToWav: Arquivo convertido: ${wavPath}`);
+                deleteFile(rawPath); // Deletar o arquivo .raw após a conversão
+                deleteFile(pcapFilePath); // Deletar o arquivo .pcap após a conversão
+                resultWavs.push(wavPath);
+            }
+            // === >>> Inserir o registro no banco (tbl_calls_parts)
+            await db.callParts.create({
+                record_id: confId,
+                ssrc,
+                srcIP,
+                srcPort,
+                destIP,
+                destPort,
+                startTime: startTime?.toString() || null,
+                endTime: endTime?.toString() || null,
+                lostPkts: lostPkts?.toString() || null,
+                payload,
+                pktsCount: pktCount?.toString() || null,
+                maxJitter: maxJitter?.toString() || null
+            });
+        
+
+        }
+
+        // ➡️ Nova etapa: gerar o arquivo "-final.wav"
+        if (resultWavs.length > 0 && rtpList.length > 0) {
+            const finalWavPath = path.join(outputDirectory, `${filenameBase}-final.wav`);
+        
+            // Passo 1: encontrar o menor startTime como referência
+            const referenceStart = Math.min(...rtpList.map(r => parseFloat(r.startTime || '0')));
+        
+            // Passo 2: montar os filtros - adelay + amix
+            const inputs = [];
+            const filters = [];
+        
+            for (let i = 0; i < resultWavs.length; i++) {
+                const filePath = resultWavs[i];
+                const delaySec = parseFloat(rtpList[i].startTime || '0') - referenceStart;
+                const delayMs = Math.round(delaySec * 1000);
+        
+                inputs.push(`-i "${filePath}"`);
+                filters.push(`[${i}:a]adelay=${delayMs}|${delayMs}[a${i}]`);
+            }
+        
+            const filterComplex = filters.join('; ') + `; ${filters.map((_, i) => `[a${i}]`).join('')}amix=inputs=${resultWavs.length}:duration=longest`;
+        
+            const ffmpegCommand = `ffmpeg ${inputs.join(' ')} -filter_complex "${filterComplex}" -y "${finalWavPath}"`;
+        
+            await execPromise(ffmpegCommand);
+            log(`Arquivo final mixado criado: ${finalWavPath}`);
+        }
+        
+
+        //atualizar o hitorico do usuário com o record_link
+        await updateUserHistoryByRecordFilename(filenameBase)
+        return resultWavs;
+    } catch (err) {
+        log(`innovaphoneController:convertRecordingPcapToWav: Erro ao converter gravação: ${err}`);
+        throw err;
     }
 };
 
@@ -1369,21 +1496,21 @@ export const convertRecordingPcapToWavffmpeg = async (pcapFilePath, outputDirect
                     log(`innovaphoneController:convertRecordingPcapToWav: ffmpeg conversion complete: ${wavFilePath}`);
 
                     // Remover arquivos .pcap e .raw após o sucesso
-                    fs.unlink(rawFilePath, (err) => {
-                        if (err) {
-                            log(`innovaphoneController:convertRecordingPcapToWav: Error deleting raw file: ${err}`);
-                        } else {
-                            log(`innovaphoneController:convertRecordingPcapToWav: Deleted raw file: ${rawFilePath}`);
-                        }
-                    });
+                    // fs.unlink(rawFilePath, (err) => {
+                    //     if (err) {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Error deleting raw file: ${err}`);
+                    //     } else {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Deleted raw file: ${rawFilePath}`);
+                    //     }
+                    // });
 
-                    fs.unlink(pcapFilePath, (err) => {
-                        if (err) {
-                            log(`innovaphoneController:convertRecordingPcapToWav: Error deleting pcap file: ${err}`);
-                        } else {
-                            log(`innovaphoneController:convertRecordingPcapToWav: Deleted pcap file: ${pcapFilePath}`);
-                        }
-                    });
+                    // fs.unlink(pcapFilePath, (err) => {
+                    //     if (err) {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Error deleting pcap file: ${err}`);
+                    //     } else {
+                    //         log(`innovaphoneController:convertRecordingPcapToWav: Deleted pcap file: ${pcapFilePath}`);
+                    //     }
+                    // });
 
                     return wavFilePath;
                 });
@@ -1463,29 +1590,29 @@ export const convertOpusPcapToOpus = async (pcapFilePath, outputDirectory, filen
                         log(`innovaphoneController:convertOpusPcapToOpus:convertOpusToWav: final record wav ${result}`)
                         if(result){
                             // Remover arquivos .raw após o sucesso
-                            fs.unlink(rawFilePath, (err) => {
-                                if (err) {
-                                    log(`innovaphoneController:convertOpusPcapToOpus: Error deleting raw file: ${err}`);
-                                } else {
-                                    log(`innovaphoneController:convertOpusPcapToOpus: Deleted raw file: ${rawFilePath}`);
-                                }
-                            });
-                            //delete .pcap file
-                            fs.unlink(pcapFilePath, (err) => {
-                                if (err) {
-                                    log(`innovaphoneController:convertOpusPcapToOpus: Error deleting pcap file: ${err}`);
-                                } else {
-                                    log(`innovaphoneController:convertOpusPcapToOpus: Deleted pcap file: ${pcapFilePath}`);
-                                }
-                            });
-                            //delete .opus file
-                            fs.unlink(opusFilePath, (err) => {
-                                if (err) {
-                                    log(`innovaphoneController:convertOpusPcapToOpus: Error deleting opus file: ${err}`);
-                                } else {
-                                    log(`innovaphoneController:convertOpusPcapToOpus: Deleted opus file: ${opusFilePath}`);
-                                }
-                            });
+                            // fs.unlink(rawFilePath, (err) => {
+                            //     if (err) {
+                            //         log(`innovaphoneController:convertOpusPcapToOpus: Error deleting raw file: ${err}`);
+                            //     } else {
+                            //         log(`innovaphoneController:convertOpusPcapToOpus: Deleted raw file: ${rawFilePath}`);
+                            //     }
+                            // });
+                            // //delete .pcap file
+                            // fs.unlink(pcapFilePath, (err) => {
+                            //     if (err) {
+                            //         log(`innovaphoneController:convertOpusPcapToOpus: Error deleting pcap file: ${err}`);
+                            //     } else {
+                            //         log(`innovaphoneController:convertOpusPcapToOpus: Deleted pcap file: ${pcapFilePath}`);
+                            //     }
+                            // });
+                            // //delete .opus file
+                            // fs.unlink(opusFilePath, (err) => {
+                            //     if (err) {
+                            //         log(`innovaphoneController:convertOpusPcapToOpus: Error deleting opus file: ${err}`);
+                            //     } else {
+                            //         log(`innovaphoneController:convertOpusPcapToOpus: Deleted opus file: ${opusFilePath}`);
+                            //     }
+                            // });
                         }
                     })
                     .catch(async(e)=>{
@@ -1502,6 +1629,38 @@ export const convertOpusPcapToOpus = async (pcapFilePath, outputDirectory, filen
         });
     } catch (e) {
         return e;
+    }
+};
+export const newConvertOpusPcapToOpus = async (pcapFilePath, outputDirectory, filenameBase, wavFilePath, ssrc) => {
+    try {
+        //const sipInfo = sipMap[srcPort] || { from: 'unknown', to: 'unknown' };
+        //const fileName = `${filenameBase}-${sipInfo.from}-${sipInfo.to}-${ssrc}`;
+        const rawFilePath = path.join(outputDirectory, `${filenameBase}.txt`);
+        const opusFilePath = path.join(outputDirectory, `${filenameBase}.opus`);
+        //const wavFilePath = path.join(outputDirectory, `${filenameBase}.wav`);
+        const rtpType = await extractFirstMediaFormat(pcapFilePath);
+        
+        
+
+        // Extrair hex RTP via tshark
+        const extractCommand = `tshark -x -r "${pcapFilePath}" -Y "rtp && rtp.ssrc==${ssrc}" | cut -d " " -f 1-20 > "${rawFilePath}"`;
+        await execPromise(extractCommand);
+        log(`innovaphoneController:newConvertOpusPcapToOpus: Extração concluída para SSRC ${ssrc}`);
+
+        // Converter para OPUS com script Python
+        const conversionCommand = `python3 ./utils/hex_to_opus.py -x "${rawFilePath}" --recordfile "${opusFilePath}" --rtpoffset 42 --payloadtype ${rtpType}`;
+        await execPromise(conversionCommand);
+        log(`innovaphoneController:newConvertOpusPcapToOpus: Conversão .opus concluída para ${opusFilePath}`);
+
+        // Converter OPUS → WAV
+        await convertOpusToWav(opusFilePath, wavFilePath);
+        log(`innovaphoneController:newConvertOpusPcapToOpus: Conversão final para WAV concluída: ${wavFilePath}`);
+        deleteFile(rawFilePath); // Deletar arquivo .raw após a conversão
+        deleteFile(opusFilePath); // Deletar arquivo .opus após a conversão  
+        return wavFilePath;
+    } catch (err) {
+        log(`innovaphoneController:newConvertOpusPcapToOpus: Erro na conversão OPUS: ${err}`);
+        throw err;
     }
 };
 
@@ -1528,7 +1687,7 @@ async function convertOpusToWav(inputFile, outputFile) {
     });
   }
 
-export async function returnRecordLink(recordList) {
+export async function oldReturnRecordLink(recordList) {
     return new Promise((resolve, reject) => {
         const outputDirectory = path.join(__dirname, '../httpfiles/recordings');
         // Ler todos os arquivos do diretório de saída
@@ -1555,6 +1714,54 @@ export async function returnRecordLink(recordList) {
         });
     });
 }
+export async function returnRecordLink(recordList) {
+    return new Promise((resolve, reject) => {
+        const outputDirectory = path.join(__dirname, '../httpfiles/recordings');
+
+        fs.readdir(outputDirectory, async (err, files) => {
+            if (err) {
+                return resolve(recordList); // Retorna a lista original se falhar
+            }
+
+            for (const record of recordList) {
+                try {
+                    // Busca os callParts relacionados no banco
+                    const parts = await db.callParts.findAll({
+                        where: { record_id: record.record_id },
+                        raw: true
+                    });
+
+                    // Para cada part encontrado, tenta localizar os arquivos
+                    const partsWithLinks = parts.map(part => {
+                        const matchingFiles = files.filter(file =>
+                            file.includes(part.ssrc) && file.endsWith('.wav')
+                        );
+
+                        return {
+                            ...part,
+                            record_link: matchingFiles.map(file => '/api/innovaphone/recordings/' + file)
+                        };
+                    });
+
+                    const matchingDownloadFile = files.find(file => file.includes(record.record_id) && file.endsWith('-final.wav'));
+                    if (matchingDownloadFile) {
+                        record.record_link = '/api/innovaphone/recordings/' + matchingDownloadFile;
+                    } else {
+                        record.record_link = '';
+                    }
+
+                    record.parts = partsWithLinks;
+
+                } catch (error) {
+                    log(`Erro buscando partes para record_id ${record.record_id}:`+error);
+                    record.parts = []; // Se der erro, assume vazio
+                }
+            }
+
+            return resolve(recordList);
+        });
+    });
+}
 /**
  * Retorna o arquivo de audio para um record_id
  * @param {string} record_id - Id da gravação 
@@ -1570,11 +1777,15 @@ export async function returnRecordFileByRecordId(record_id) {
             }
 
             // Verificar se algum arquivo corresponde ao record_id
-            const matchingFile = files.find(file => file.includes(record_id));
+            const matchingFiles = files.filter(file => file.includes(record_id) && !file.endsWith('-final.wav'));
                 
             // Se encontrar uma correspondência, atribuir o nome do arquivo ao record_id
-            if (matchingFile) {
-                return resolve('./httpfiles/recordings/'+matchingFile);
+            if (matchingFiles.length > 0) {
+                // Se houver arquivo, incluir o path completo em cada arquivo
+                const matchingFilesWithPath = matchingFiles.map(file => './httpfiles/recordings/' + file);
+
+                //return resolve('./httpfiles/recordings/'+matchingFile);
+                return resolve(matchingFilesWithPath);
             }
             return resolve(null);
         });
@@ -1649,22 +1860,31 @@ async function updateUserHistoryByRecordFilename(inputString) {
         log(`innovaphoneController:updateUserHistoryByRecordFilename: filename ${inputString}`)
         // Realiza o split da string pelo '-'
         const parts = inputString.split('-');
-        log(`innovaphoneController:updateUserHistoryByRecordFilename: record_id ${parts[0]}`)
         // Obtém o valor do índice 0
         const recordId = parts[0];
-
+        log(`innovaphoneController:updateUserHistoryByRecordFilename: record_id ${recordId}`)
         // Consulta no model Call onde record_id é igual ao valor do índice 0
         const call = await db.call.findOne({
             where: {
-                record_id: recordId, // Ajuste o campo conforme o modelo
+                record_id: recordId
             },
         });
+        if(!call) {
+            log(`innovaphoneController:updateUserHistoryByRecordFilename: call not found`)
+            return null; // Retorna null se não encontrar o registro
+        }
+        // Se o registro for encontrado, você pode fazer o que precisar com ele
         log(`innovaphoneController:updateUserHistoryByRecordFilename: call ID ${call.id}`)
         // Retorna o objeto encontrado ou null se não houver correspondência
 
         let activity = await db.activity.findOne({where:{
             details: call.id
         }})
+        if(!activity) {
+            log(`innovaphoneController:updateUserHistoryByRecordFilename: activity not found`)
+            return call; // Retorna null se não encontrar o registro
+        }
+
         let activityJSON =  activity.toJSON();
         let callJSON =  call.toJSON();
         log(`innovaphoneController:updateUserHistoryByRecordFilename: activity ID ${activity.id}`)
@@ -1684,3 +1904,335 @@ async function updateUserHistoryByRecordFilename(inputString) {
         throw error; // Lança o erro para ser tratado pelo chamador
     }
 }
+
+async function oldUpdateUserHistoryByRecordFilename(inputString) {
+    try {
+        log(`innovaphoneController:updateUserHistoryByRecordFilename: filename ${inputString}`)
+        // Realiza o split da string pelo '-'
+        const parts = inputString.split('-');
+        log(`innovaphoneController:updateUserHistoryByRecordFilename: record_id ${parts[0]}`)
+        // Obtém o valor do índice 0
+        const recordId = parts[0];
+
+        // Consulta no model Call onde record_id é igual ao valor do índice 0
+        const call = await db.call.findOne({
+            where: {
+                record_id: recordId, // Ajuste o campo conforme o modelo
+            },
+        });
+        if(!call) {
+            log(`innovaphoneController:updateUserHistoryByRecordFilename: call not found`)
+            return null; // Retorna null se não encontrar o registro
+        }
+        // Se o registro for encontrado, você pode fazer o que precisar com ele
+        log(`innovaphoneController:updateUserHistoryByRecordFilename: call ID ${call.id}`)
+        // Retorna o objeto encontrado ou null se não houver correspondência
+
+        let activity = await db.activity.findOne({where:{
+            details: call.id
+        }})
+        if(!activity) {
+            log(`innovaphoneController:updateUserHistoryByRecordFilename: activity not found`)
+            return call; // Retorna null se não encontrar o registro
+        }
+
+        let activityJSON =  activity.toJSON();
+        let callJSON =  call.toJSON();
+        log(`innovaphoneController:updateUserHistoryByRecordFilename: activity ID ${activity.id}`)
+        await returnRecordLink([callJSON])
+            .then(async(result) =>{
+                log(`innovaphoneController:updateUserHistoryByRecordFilename:returnRecordLink: record_link ${result[0].record_link}`)
+                activityJSON.details = result[0];
+                send(activity.guid, { api: "user", mt: "getHistoryResult", result: [activityJSON] });
+            })
+            .catch(async(e)=>{
+                log(`innovaphoneController:updateUserHistoryByRecordFilename:returnRecordLink: error ${e}`)
+                send(activity.guid, { api: "user", mt: "getHistoryResult", result: [activityJSON] });
+            })
+        return call;
+    } catch (error) {
+        log('innovaphoneController:updateUserHistoryByRecordFilename: Erro ao buscar o registro:'+ error);
+        throw error; // Lança o erro para ser tratado pelo chamador
+    }
+}
+
+export async function parseCdrXml(xmlString) {
+    // Parseia a string XML
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlString, "application/xml");
+  
+    // Verifica se houve erro no parse
+    if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+      console.error("innovaphoneController:parseCdrXml: Erro ao parsear o XML");
+      return;
+    }
+  
+    // Extrair atributos do elemento <cdr>
+    const cdrElements = xmlDoc.getElementsByTagName('cdr');
+    if (cdrElements.length === 0) {
+      console.error("innovaphoneController:parseCdrXml: <cdr> não encontrado");
+      return;
+    }
+  
+    const cdrElement = cdrElements[0];
+
+    const guid = cdrElement.getAttribute('guid');
+
+    const user = await db.user.findOne({
+        where: {
+            sip: guid
+        }
+    })
+
+    if(!user) {
+        log(`innovaphoneController:parseCdrXml: CORE user not found for guid ${guid}`)
+        return;
+    }
+
+    const device = cdrElement.getAttribute('device');
+    const utc = cdrElement.getAttribute('utc');
+    const call = cdrElement.getAttribute('call');
+    const direction = cdrElement.getAttribute('dir');
+    // Extrair atributo conf do <event> onde msg="setup-to"
+    const eventElements = xmlDoc.getElementsByTagName('event');
+    let conf = null;
+    let to = null;
+    let callStarted = null;
+    let callRinging = null;
+    let callConnected = null;
+    let callEnded = null;
+    let timeSetup = 0;
+    
+    log(`innovaphoneController:parseCdrXml: guid ${guid}`)
+    log(`innovaphoneController:parseCdrXml: device ${device}`)
+    log(`innovaphoneController:parseCdrXml: utc ${utc}`)
+    log(`innovaphoneController:parseCdrXml: call ${call}`)
+    log(`innovaphoneController:parseCdrXml: direction ${direction}`)
+    log(`innovaphoneController:parseCdrXml: eventElements ${eventElements.length}`)
+    
+
+    //recebida
+    if(direction === 'to'){
+        for (let i = 0; i < eventElements.length; i++) {
+            const event = eventElements[i];
+            //Setup
+            if (event.getAttribute('msg') === 'setup-to') {
+                conf = event.getAttribute('conf');
+                to = event.getAttribute('dn') || event.getAttribute('h323') || event.getAttribute('e164');
+                timeSetup = event.getAttribute('time');
+                log(`innovaphoneController:parseCdrXml: setup-to time ${timeSetup}`)
+                //log(`innovaphoneController:parseCdrXml: setup-to utc ${utc}`)
+                callStarted = getDateNow(parseInt(utc));
+                //log(`innovaphoneController:parseCdrXml: setup-to utc+time ${callStarted}`)
+                
+                continue;
+            }
+            //Alert
+            if (event.getAttribute('msg') === 'alert-from') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: alert-from time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: alert-from utc ${utc}`)
+                callRinging = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: alert-from utc+time ${callRinging}`)
+                
+                continue;
+            }else if (event.getAttribute('msg') === 'alert-to') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: alert-to time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: alert-to utc ${utc}`)
+                callRinging = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: alert-to utc+time ${callRinging}`)
+                
+                continue;
+            }
+            //Atendimento
+            if (event.getAttribute('msg') === 'conn-from') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: conn-from time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: conn-from utc ${utc}`)
+                callConnected = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: conn-from utc+time ${callConnected}`)
+                
+                continue;
+            }
+            else if (event.getAttribute('msg') === 'conn-to') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: conn-to time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: conn-to utc ${utc}`)
+                callConnected = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: conn-to utc+time ${callConnected}`)
+                
+                continue;
+            }
+            //Encerramento
+            if (event.getAttribute('msg') === 'rel-from') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: rel-from time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: rel-from utc ${utc}`)
+                callEnded = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: rel-from utc+time ${callEnded}`)
+                
+                continue;
+            }
+            else if (event.getAttribute('msg') === 'rel-to') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: rel-to time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: rel-to utc ${utc}`)
+                callEnded = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: rel-to utc+time ${callEnded}`)
+                
+                continue;
+            }
+        }
+    }else{
+        for (let i = 0; i < eventElements.length; i++) {
+            const event = eventElements[i];
+            //Setup
+            if (event.getAttribute('msg') === 'setup-from') {
+                conf = event.getAttribute('conf');
+                to = event.getAttribute('dn') || event.getAttribute('h323') || event.getAttribute('e164');
+                timeSetup = event.getAttribute('time');
+                log(`innovaphoneController:parseCdrXml: setup-from time ${timeSetup}`)
+                //log(`innovaphoneController:parseCdrXml: setup-from utc ${utc}`)
+                callStarted = getDateNow(parseInt(utc));
+                //log(`innovaphoneController:parseCdrXml: setup-from utc+time ${callStarted}`)
+                
+                continue;
+            }
+            //Alert
+            if (event.getAttribute('msg') === 'alert-to') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: alert-to time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: alert-to utc ${utc}`)
+                callRinging = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: alert-to utc+time ${callRinging}`)
+                
+                continue;
+            }else if (event.getAttribute('msg') === 'alert-from') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: alert-from time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: alert-feom utc ${utc}`)
+                callRinging = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: alert-from utc+time ${callRinging}`)
+                
+                continue;
+            }
+            //Atendimento
+            if (event.getAttribute('msg') === 'conn-to') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: conn-to time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: conn-to utc ${utc}`)
+                callConnected = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: conn-to utc+time ${callConnected}`)
+                
+                continue;
+            }else if (event.getAttribute('msg') === 'conn-from') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: conn-from time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: conn-from utc ${utc}`)
+                callConnected = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: conn-from utc+time ${callConnected}`)
+                
+                continue;
+            }
+            //Encerramento
+            if (event.getAttribute('msg') === 'rel-to') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: rel-to time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: rel-to utc ${utc}`)
+                callEnded = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: rel-to utc+time ${callEnded}`)
+                
+                continue;
+            }
+            else if (event.getAttribute('msg') === 'rel-from') { 
+                const time = event.getAttribute('time');
+                const timeDifference = calculateCallDuration(timeSetup, time);
+                log(`innovaphoneController:parseCdrXml: rel-from time ${time}`)
+                //log(`innovaphoneController:parseCdrXml: rel-from utc ${utc}`)
+                callEnded = getDateNow(parseInt(utc) + timeDifference);
+                //log(`innovaphoneController:parseCdrXml: rel-from utc+time ${callEnded}`)
+                
+                continue;
+            }
+        }
+
+    }
+  
+
+    log(`innovaphoneController:parseCdrXml: #conf ${conf} #from ${user.name} #to ${to} #call ${call} #direction ${direction} 
+        #callStarted ${callStarted} #callRinging ${callRinging} #callConnected ${callConnected} #callEnded ${callEnded}`);
+
+    let resultCall = null;
+
+    resultCall = await db.call.findOne({
+        where: {
+          guid: user.guid,
+          record_id: conf
+        },
+        order: [
+          ['id', 'DESC']
+        ]
+      });
+      
+    if(resultCall){
+        const callToUpdateResult = await db.call.update(
+            {
+                call_started: callStarted,
+                call_ringing: callRinging,
+                call_connected: callConnected,
+                call_ended: callEnded,
+                call_innovaphone: call,
+                status: 3,
+                direction: direction === 'to' ? "out" : "inc",
+                device: device,
+             }, // Valores a serem atualizados
+            { 
+                where: { id: parseInt(resultCall.id) } } // Condição para atualização
+        );
+        log(`innovaphoneController:parseCdrXml: updated ${callToUpdateResult} call with id ${resultCall.id}`)
+    }
+    else{
+
+        resultCall = await db.call.create({
+            guid: user.guid,
+            number: to,
+            call_started: callStarted,
+            call_ringing: callRinging,
+            call_connected: callConnected,
+            call_ended: callEnded,
+            call_innovaphone: call,
+            status: 3,
+            direction: direction === 'to' ? "out" : "inc",
+            device: device,
+            record_id: conf,
+        })
+        log("innovaphoneController:parseCdrXml: db.create.call success id " + resultCall.id);
+
+    }
+    return resultCall;
+  }
+  /**
+ * Calcula a duração em segundos entre dois eventos, dado o utc inicial da sessão
+ * @param {int} start - number
+ * @param {int} end - number
+ * @returns {number} duração em segundos
+ */
+function calculateCallDuration(start, end) {
+    
+    const durationS = parseInt(end) - parseInt(start);
+  
+    return durationS;
+  }
+  

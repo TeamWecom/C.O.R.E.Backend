@@ -1874,36 +1874,93 @@ export const handleConnection = async (conn, req) => {
                                 const call = await db.call.findOne({where: {
                                     id: parseInt(obj.call)
                                 }})
-                                const audio = await returnRecordFileByRecordId(call.record_id)
-                                if(audio){
-                                    var result = await openAIRequestTranscription(audio);
-                                    result.id = obj.call
-                                    conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: result }))    
-                                    if(result.status == "OK"){
+                                const audios = await returnRecordFileByRecordId(call.record_id);
+                                if (audios) {
+                                    let fullTranscription = ''; // Variável para armazenar a transcrição completa
+                                    let partNumber = 1;
+                                    for (const audio of audios) {
+                                        try {
+                                            const result = await openAIRequestTranscription(audio);
+                                            if (result.status === "OK") {
+                                                fullTranscription += `[Parte ${partNumber}]\n${result.text}\n\n`; // Adiciona a estrutura desejada
+                                                partNumber++;
+                                             } else {
+                                                log(`Erro ao transcrever áudio: ${audio}`);
+                                            }
+                                        } catch (error) {
+                                            log(`Erro ao processar áudio: ${audio}, erro: ${error}`);
+                                        }
+                                    }
+
+                                    fullTranscription = fullTranscription.trim(); // Remove espaços extras no final
+
+                                    conn.send(JSON.stringify({ 
+                                        api: "admin", 
+                                        mt: "GetTranscriptionResult", 
+                                        call: obj.call, 
+                                        result: { id: obj.call, status: "OK", text: fullTranscription } 
+                                    }));
+
+                                    if (fullTranscription) {
                                         let objToInsert = {
                                             call_id: obj.call,
-                                            text: result.text,
+                                            text: fullTranscription,
                                             create_user: conn.guid,
                                             createdAt: getDateNow()
-                
-                                        }
-                                        await db.callTranscription.create(objToInsert)
-                                    }else {
-
+                                        };
+                                        await db.callTranscription.create(objToInsert);
+                                    } else {
                                         let objToInsert = {
                                             call_id: obj.call,
                                             text: 'noTranscription',
                                             create_user: conn.guid,
                                             createdAt: getDateNow()
-
-                                        }
-                                        await db.callTranscription.create(objToInsert)
+                                        };
+                                        await db.callTranscription.create(objToInsert);
                                     }
-                                    return
-                                }else{
-                                    conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {id: obj.call, status: "NOK", text: "File not found"} }))    
-                                    return
+                                    return;
+                                } else {
+                                    conn.send(JSON.stringify({ 
+                                        api: "admin", 
+                                        mt: "GetTranscriptionResult", 
+                                        call: obj.call, 
+                                        result: { id: obj.call, status: "NOK", text: "File not found" } 
+                                    }));
+                                    return;
                                 }
+                                // const audios = await returnRecordFileByRecordId(call.record_id)
+                                // if(audios){
+                                //     for (const audio of audios) {
+                                        
+                                //     }
+                                //     var result = await openAIRequestTranscription(audio);
+                                //     result.id = obj.call
+                                //     conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: result }))    
+                                //     if(result.status == "OK"){
+                                //         let objToInsert = {
+                                //             call_id: obj.call,
+                                //             text: result.text,
+                                //             create_user: conn.guid,
+                                //             createdAt: getDateNow()
+                
+                                //         }
+                                //         await db.callTranscription.create(objToInsert)
+                                //     }else {
+
+                                //         let objToInsert = {
+                                //             call_id: obj.call,
+                                //             text: 'noTranscription',
+                                //             create_user: conn.guid,
+                                //             createdAt: getDateNow()
+
+                                //         }
+                                //         await db.callTranscription.create(objToInsert)
+                                //     }
+                                //     return
+                                // }else{
+                                //     conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {id: obj.call, status: "NOK", text: "File not found"} }))    
+                                //     return
+                                // }
                             }else{
                                 //já transcrevido
                                 conn.send(JSON.stringify({ api: "admin", mt: "GetTranscriptionResult", call: obj.call, result: {id: obj.call, status: "OK", text: call_transcription.text} }))    

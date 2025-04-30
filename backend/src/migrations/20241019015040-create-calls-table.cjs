@@ -28,7 +28,7 @@ module.exports = {
       direction: Sequelize.STRING,
       record_id: Sequelize.STRING,
       btn_id: Sequelize.STRING,
-      call_innovaphone: Sequelize.INTEGER,
+      call_innovaphone: Sequelize.STRING,
       device: Sequelize.STRING,
     });
   },

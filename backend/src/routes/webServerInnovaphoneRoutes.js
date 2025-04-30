@@ -6,7 +6,7 @@ import path from 'path';
 import url from 'url';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { presenceSubscription, callEvents, userEvents, convertRecordingPcapToWav, propfind, restartPassiveRCCMonitor } from '../controllers/innovaphoneController.js'
+import { presenceSubscription, callEvents, userEvents, convertRecordingPcapToWav, propfind, restartPassiveRCCMonitor, parseCdrXml } from '../controllers/innovaphoneController.js'
 import fs from 'fs';
 
 const router = express.Router();
@@ -43,7 +43,7 @@ router.post('/presence', async (req, res) => {
 router.post('/callEvents', async (req, res) => {
     try {
         const body = req.body;
-        log("webServerInnovaphoneRoutes /innovaphone/callEvents: " + JSON.stringify(body))
+        //log("webServerInnovaphoneRoutes /innovaphone/callEvents: " + JSON.stringify(body))
         callEvents(body)
         res.status(200).send();
     } catch (e) {
@@ -55,7 +55,7 @@ router.post('/callEvents', async (req, res) => {
 router.post('/userEvents', async (req, res) => {
     try {
         const body = req.body;
-        log("webServerInnovaphoneRoutes /innovaphone/userEvents: " + JSON.stringify(body))
+        //log("webServerInnovaphoneRoutes /innovaphone/userEvents: " + JSON.stringify(body))
         userEvents(body)
         res.status(200).send();
     } catch (e) {
@@ -125,5 +125,17 @@ router.get('/recordings/:filename', (req, res) => {
       }
     });
   });
+
+//Rota para receber eventos de CDR (Call Detail Records)
+router.post('/cdr', express.raw({ type: 'text/xml' }), async (req, res) => {
+    try {
+        const rawBody = req.body.toString('utf-8'); // aqui o XML completo
+        //log("webServerInnovaphoneRoutes /innovaphone/cdr:"+ rawBody);
+        parseCdrXml(rawBody)
+        res.status(200).send();
+    } catch (e) {
+        res.status(500).send(e);
+    }
+});
 
 export default router;
