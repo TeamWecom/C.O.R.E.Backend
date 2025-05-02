@@ -8,7 +8,8 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { presenceSubscription, callEvents, userEvents, convertRecordingPcapToWav, propfind, restartPassiveRCCMonitor, parseCdrXml } from '../controllers/innovaphoneController.js'
 import fs from 'fs';
-
+import { DOMParser } from '@xmldom/xmldom';
+const domParser = new DOMParser();
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -77,7 +78,7 @@ router.get('/restartUserMonitor', async (req, res) => {
 // Endpoint para capturar dados enviados via PUT e salvar como arquivo Innovaphone Recording URL
 router.put('/recording/:filename', (req, res) => {
     const pcapFilePath = path.join(staticDir + 'uploads/', req.params.filename);
-
+    log(`webServerInnovaphoneRoutes: /innovaphone/recording/: Received PUT request to save file: ${pcapFilePath}`);
     // Cria um stream de escrita para salvar o arquivo no disco
     const writeStream = fs.createWriteStream(pcapFilePath);
 
@@ -89,7 +90,7 @@ router.put('/recording/:filename', (req, res) => {
         writeStream.end();
         res.status(200).send('File uploaded successfully.');
         const outputDirectory = path.join(__dirname, '../httpfiles/recordings');
-        log(`webServerInnovaphoneRoutes: /innovaphone/recording/: File uploaded successfully, start to convert pcap`);
+        log(`webServerInnovaphoneRoutes: /innovaphone/recording/: File uploaded successfully, start to convert pcap to wav: ${pcapFilePath}`);
         convertRecordingPcapToWav(pcapFilePath, outputDirectory, req.params.filename.split('.')[0])
     });
 
@@ -129,12 +130,18 @@ router.get('/recordings/:filename', (req, res) => {
 //Rota para receber eventos de CDR (Call Detail Records)
 router.post('/cdr', express.raw({ type: 'text/xml' }), async (req, res) => {
     try {
-        const rawBody = req.body.toString('utf-8'); // aqui o XML completo
-        //log("webServerInnovaphoneRoutes /innovaphone/cdr:"+ rawBody);
+        const rawBody = await req.body.toString('utf-8');
+        
+        log("webServerInnovaphoneRoutes /innovaphone/cdr:"+ rawBody);
+        if (!rawBody || typeof rawBody !== 'string' || rawBody.trim() === '') {
+            log('ERRO: XML vazio ou não definido!');
+            return res.status(400).send('XML inválido: vazio ou não definido');
+        }
         parseCdrXml(rawBody)
-        res.status(200).send();
+        return res.status(200).send();
     } catch (e) {
-        res.status(500).send(e);
+        log(`webServerInnovaphoneRoutes /innovaphone/cdr: Erro ao fazer parse do XML: ${e.message}`);
+        return res.status(500).send(e);
     }
 });
 

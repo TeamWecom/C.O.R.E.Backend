@@ -10,12 +10,12 @@ import { exec } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import fs from 'fs';
+import fs, { truncate } from 'fs';
 import { triggerActionByStartType } from './actionController.js';
 import { extractRtpSsrcInfo, extractSipToPortMap, deleteFile, extractFirstMediaFormat } from './filesController.js';
 import { get } from 'http';
 import { DOMParser } from '@xmldom/xmldom';
-
+const domParser = new DOMParser();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1386,7 +1386,7 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
     
                 log(`innovaphoneController:convertRecordingPcapToWav: Arquivo convertido: ${wavPath}`);
                 deleteFile(rawPath); // Deletar o arquivo .raw após a conversão
-                deleteFile(pcapFilePath); // Deletar o arquivo .pcap após a conversão
+                
                 resultWavs.push(wavPath);
             }
             // === >>> Inserir o registro no banco (tbl_calls_parts)
@@ -1436,6 +1436,7 @@ export const convertRecordingPcapToWav = async (pcapFilePath, outputDirectory, f
             log(`Arquivo final mixado criado: ${finalWavPath}`);
         }
         
+        deleteFile(pcapFilePath); // Deletar o arquivo .pcap após a conversão
 
         //atualizar o hitorico do usuário com o record_link
         await updateUserHistoryByRecordFilename(filenameBase)
@@ -1958,9 +1959,15 @@ async function oldUpdateUserHistoryByRecordFilename(inputString) {
 
 export async function parseCdrXml(xmlString) {
     // Parseia a string XML
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlString, "application/xml");
-  
+    let xmlDoc;
+    try{
+        const parser = new DOMParser();
+        xmlDoc = parser.parseFromString(xmlString, "application/xml");
+
+    }catch(e){
+        log(`innovaphoneController:parseCdrXml: Erro ao parsear o XML: ${e.message}`);
+        return;
+    }
     // Verifica se houve erro no parse
     if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
       console.error("innovaphoneController:parseCdrXml: Erro ao parsear o XML");
@@ -1992,7 +1999,7 @@ export async function parseCdrXml(xmlString) {
     const device = cdrElement.getAttribute('device');
     const utc = cdrElement.getAttribute('utc');
     const call = cdrElement.getAttribute('call');
-    const direction = cdrElement.getAttribute('dir');
+    let direction = cdrElement.getAttribute('dir');
     // Extrair atributo conf do <event> onde msg="setup-to"
     const eventElements = xmlDoc.getElementsByTagName('event');
     let conf = null;
@@ -2002,7 +2009,8 @@ export async function parseCdrXml(xmlString) {
     let callConnected = null;
     let callEnded = null;
     let timeSetup = 0;
-    
+    let pseudo = null;
+    let trkNumber = null;
     log(`innovaphoneController:parseCdrXml: guid ${guid}`)
     log(`innovaphoneController:parseCdrXml: device ${device}`)
     log(`innovaphoneController:parseCdrXml: utc ${utc}`)
@@ -2010,7 +2018,12 @@ export async function parseCdrXml(xmlString) {
     log(`innovaphoneController:parseCdrXml: direction ${direction}`)
     log(`innovaphoneController:parseCdrXml: eventElements ${eventElements.length}`)
     
-
+    const userElements = xmlDoc.getElementsByTagName('user');
+    if (userElements.length > 0) {
+        const userElement = userElements[0];
+        pseudo = userElement.getAttribute('pseudo');
+        log(`innovaphoneController:parseCdrXml: pseudo ${pseudo}`)
+    }
     //recebida
     if(direction === 'to'){
         for (let i = 0; i < eventElements.length; i++) {
@@ -2169,6 +2182,18 @@ export async function parseCdrXml(xmlString) {
         }
 
     }
+
+    if(pseudo =='trunk'){
+        trkNumber = cdrElement.getAttribute('e164');;
+        log(`innovaphoneController:parseCdrXml: trunkNumber ${trkNumber}`)
+        //Adequação para o caso de ser trunk
+        //Se a direção for "to" e o evento for de um trunk, inverte a direção
+        if(direction === 'to'){
+            direction = 'from';
+        }else{
+            direction = 'to';
+        }
+    }
   
 
     log(`innovaphoneController:parseCdrXml: #conf ${conf} #from ${user.name} #to ${to} #call ${call} #direction ${direction} 
@@ -2195,8 +2220,8 @@ export async function parseCdrXml(xmlString) {
                 call_ended: callEnded,
                 call_innovaphone: call,
                 status: 3,
-                direction: direction === 'to' ? "out" : "inc",
-                device: device,
+                direction: direction === 'from' ? "out" : "inc",
+                device: pseudo === 'trunk' ? trkNumber : device,
              }, // Valores a serem atualizados
             { 
                 where: { id: parseInt(resultCall.id) } } // Condição para atualização
@@ -2214,8 +2239,8 @@ export async function parseCdrXml(xmlString) {
             call_ended: callEnded,
             call_innovaphone: call,
             status: 3,
-            direction: direction === 'to' ? "out" : "inc",
-            device: device,
+            direction: direction === 'from' ? "out" : "inc",
+            device: pseudo === 'trunk' ? trkNumber : device,
             record_id: conf,
         })
         log("innovaphoneController:parseCdrXml: db.create.call success id " + resultCall.id);
